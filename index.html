@@ -1,0 +1,95 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Abacus Machine</title>
+  <meta name="description" content="Abacus Machine Simulator">
+  <meta name="author" content="Gaurav Manek">
+
+  <link href='https://fonts.googleapis.com/css?family=Merriweather:700|Source+Sans+Pro|Inconsolata' rel='stylesheet' type='text/css' />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/theme/default.min.css" />
+  <link rel="stylesheet" href="style.css?v=1.0" />
+  <!--[if lt IE 9]>
+  <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+</head>
+
+<body onload="start()">
+  <div id="header" contentrole="header">
+    <h1>Abacus Machine Simulator</h1>
+    <div class="links">
+      <small><a href="https://github.com/gauravmm/AbacusMachineSim/issues">Found a Bug?</a></small>
+      <small><a href="https://github.com/gauravmm/AbacusMachineSim">Code on Github</a></small>
+    </div>
+    <div class="attribution">
+      <small><a href="http://www.gauravmanek.com">Gaurav Manek</a></small>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="stateArea"></div>
+    <div class="inputArea">
+      <div id="runtimeOut" class="runtimeReady">Press Run to start.</div>
+      <div class="codeWrapper"><textarea id="code">// This is a comment
+// This is another comment 
+/* This
+ * is 
+ * a
+ * multiline
+ * comment
+ */
+
+function rem([1],[2]) -> [rv] {
+  :start
+  cpy([1]) -> [rv];
+  quo([1], [2]) -> [6];
+  [7]+, ~;
+  [7]+;     // Proceed to next instruction by default
+  [7]-;     // Proceed to next instruction by default
+  [7]-, :start, :mainloop; // Specify the jumps otherwise
+  goto :start; // This instruction is never reached.
+  
+  :mainloop
+  cpy([2]) -> [5];
+  [3]-, ~, ~; // Both branches go to the next instruction
+  [5]-, :mainloop, ~; // If not empty, continue. If empty, go to 15.
+  [6]-, next, :mainloop; // If not empty, go to :mainloop
+} where {
+  rem(5,7) is rem(12,7);
+  rem(10,6) is 4;
+  rem(7,7) is rem(3,3);
+}
+
+function recursionTest([1]) -> [2], [3] {
+  cpy(80) -> [2];
+  rem([2], 3) -> [3];
+} where {
+  recursionTest(3) is 80, 2
+}
+</textarea></div>
+      <div>
+        <button id="btnRun" onclick="run()">Run</button><button id="btnGraphViz" onclick="graphViz()">GraphViz</button>
+      </div>
+    </div>
+  </div>
+</div>  
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/codemirror.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/addon/mode/simple.min.js"></script>
+<script type="text/javascript" src="cmsyntax.js"></script>
+<script type="text/javascript" src="script.js"></script>
+<script type="text/javascript" src="machine.js"></script>
+
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','http://www.google-analytics.com/analytics.js','ga');
+ga('create', 'UA-20172505-3', 'auto');
+ga('send', 'pageview');
+</script>
+</body>
+</html>

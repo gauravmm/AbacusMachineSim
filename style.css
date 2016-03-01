@@ -1,0 +1,189 @@
+html, body {
+	height: 100%;
+	width: 100%;
+	padding:0;
+	margin:0;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+
+	font-family: 'Source Sans Pro', sans-serif;
+	font-size: 90%;
+}
+
+pre, code, .code, #runtimeOut {
+	font-family: 'Inconsolata', Courier, monospace;
+}
+
+h1,h2,h3 {
+	font-family: 'Merriweather', serif;
+
+	text-shadow: 0px 1px rgba(255, 255, 255, 0.4);
+}
+
+a {
+	color: black;
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: none;
+}
+
+.container {
+	flex: 1 1 auto;
+
+	display: flex;
+	flex-direction: reverse-row;
+	flex-wrap: nowrap;
+}
+
+#header {
+	position: relative;
+
+	height: 3rem;
+	width: 100%;
+
+	background: #84b4e1;
+	box-shadow: 0 6px 6px -6px black;
+}
+#header>h1 {
+	font-size: 200%;
+	display: inline-block;
+	margin: 0.5rem 0 0 calc(4rem + 0.5em);
+}
+
+#header>.links {
+	display: inline-block;
+
+	position: absolute;
+	right: 0;
+	bottom: 0;
+}
+.links>small {
+	display: inline-block;
+	min-width: 6rem;
+	text-align: center;
+
+	margin-right: 8px;
+
+	border-bottom: 0.25rem solid #c3daf0;
+}
+
+.attribution {
+	position: absolute;
+	top: 3px;
+	right: 0;
+	margin: 0px;
+	padding: 0 1em 0 0.5em;
+	height: 18px;
+
+	background: #c3daf0;
+}
+
+.stateArea {
+	box-sizing:border-box;
+	padding: 12px 5px;
+	overflow: auto;
+	flex: 1 1 auto;
+}
+
+.codeWrapper {
+	margin-left: -5px;
+	flex: 1 1 auto;
+	position: relative;
+}
+
+.codeWrapper > .CodeMirror {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+
+	height: 100%;
+	height: calc(100% - 1px);
+}
+
+.inputArea {
+	background: #F7F7F7;
+	padding: 0px 5px;
+	width: 50%;
+
+	border-left: thick solid #c3daf0;
+
+	display: flex;
+	flex-direction: column;
+	flex-wrap: nowrap;
+}
+
+.inputArea>h3 {
+	margin: 10px 0px 5px -5px;
+	padding-left: 5px;
+	border-left: 5px solid #c3daf0;
+}
+
+.inputArea>:first-child {
+	margin-top: 5px;
+}
+
+.inputArea>* {
+	margin-top: 3px;
+	margin-bottom: 0px;
+}
+
+.inputArea>:last-child {
+	margin-bottom: 5px;
+}
+
+#tapeStart.tapeView {
+	margin-bottom: 14px;
+}
+
+.codeView {
+	margin: 20px 36px;
+	margin: 20px calc(4rem + 7px);
+	padding: 8px;
+
+	border: thin solid black;
+}
+
+.inputArea input {
+	box-sizing: border-box;
+	width: 100%;
+	background: none;
+	border: none;
+	border-bottom: thin solid black;
+	text-align: right;
+}
+
+#code {
+	flex: 1 1 auto;
+}
+
+#btnRun {
+	width: 60%;
+	width: calc(70% - 5px);
+	margin-right: 5px;
+}
+#btnGraphViz {
+	width: 30%;
+}
+
+#runtimeOut {
+	padding-left: 5px;
+	border: solid thin darkgrey;
+}
+
+.runtimeReady {
+	background: white;
+}
+
+.runtimeGood {
+	background: #89EA3A;
+}
+
+.runtimeError {
+	background: #FF7BBF;
+}
