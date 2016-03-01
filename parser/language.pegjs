@@ -20,8 +20,9 @@ Code
   = __ fn:(Function __)* {return mapPos(fn, 0);}
 
 Function
-  = "function" _ name:Identifier _ "(" args:ArgumentList ")" _ "->" _ dest:Register _ "{" body: FunctionBody "}" (__ "where" _ "{" tests:TestBody "}")? {
-      return {name: name, args: args, return: dest, body: body };
+  = "function" _ name:Identifier _ "(" args:ArgumentList ")" _ "->" _ dest:ArgumentList _ "{" body: FunctionBody "}" test:(__ "where" __ "{" TestBody "}")? {
+      return {name: name, args: args, return: dest, body: body,
+                 tests: (typeof test !== 'undefined')?test[4]:"" };
     }
 
 FunctionBody
@@ -30,7 +31,9 @@ FunctionBody
   }
  
 TestBody
-  = (__ TestLine)* __
+  = tst:(__ TestLine _ ";")* __ {
+    return mapPos(tst, 1);
+  }
   
 Line
   = _ label:MarkerAnchor? _ line:(FunctionCall/RegisterChange) _ ";" {
@@ -49,7 +52,11 @@ Line
   }
   
 TestLine "test case"
-  = _ FunctionCallHead _ "is" _ (FunctionCallHead/IntegerArgument) _ ";"
+  = _ lhs:FunctionCallHead _ "is" _ rhs:(FunctionCallHead/ArgumentList) {
+    var loc = location();
+      return { type:"ln", lineno:loc["start"]["line"], lhs: lhs, rhs: rhs };
+  }
+  
   
 Marker "position marker"
   = MarkerAnchor 
@@ -69,7 +76,7 @@ RelativeMarker "relative position marker"
   }
 
 FunctionCall
-  = head:FunctionCallHead _ "->" _ to:Register {
+  = head:FunctionCallHead _ "->" _ to:ArgumentList {
     return { type:"callandstore", fn:head, store:to };
   }
 
@@ -97,8 +104,8 @@ Keyword
 IntegerArgument 
   = int:Integer { return {type: "integer", val: int }; }
 
-ArgumentList  // Return just the registers:
-  = _ regs:((Register/IntegerArgument) _ ("," _)?)* _ { return mapPos(regs, 0); }
+ArgumentList 
+  = _ regs:((Register/IntegerArgument) _ ("," _)?)* _ { return { type:"arglist", val:mapPos(regs, 0) }; }
 
 Register
   = "[" _ val:NumericIdentifier _ "]" { return { type: "register", id: val } }
