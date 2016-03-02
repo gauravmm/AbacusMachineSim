@@ -50,3 +50,7 @@ function rem([1],[arg2]) -> [rv1], [7] {
 Where `rem` is the function name, the function arguments are given as a comma-separated list of registers. The registers containing the return value are specified after the `->`. At the end of the function whatever the value stored in the return registers is passed to the calling function.
 
 Function calls are made as follows: `quo([1], [2]) -> [6], [8];`. Registers in the parenthesis are passed by value to the function, and the return values are copied to the source registers, overwriting whatever previous values were stored.
+
+### Recursion
+
+In actual abacus machines the function abstraction does not exist, and functions are implemented by "copying" the structure of the abacus machine into each place the function is invoked. To ensure that this language does not (accidentally) allow for an abacus machine with infinite states to be implemented, recursive calls (including mutual recursion) are not allowed.
