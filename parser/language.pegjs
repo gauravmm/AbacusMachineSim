@@ -22,7 +22,8 @@ Code
 
 Function
   = "function" _ name:Identifier _ "(" args:ArgumentList ")" _ "->" _ dest:ArgumentList _ "{" body: FunctionBody "}" test:(__ "where" __ "{" TestBody "}")? {
-      return {name: name, args: args, return: dest, body: body,
+      var loc = location();
+      return {name: name, args: args, return: dest, body: body, lineno: loc.start.line,
                  tests: (test)?test[4]:[] };
     }
 
@@ -45,11 +46,13 @@ Line
     return rv;
   }
   / _ label:MarkerAnchor {
-    return {anchor: label};
+    var loc = location();
+    return {anchor: label, lineno:loc["start"]["line"]};
   }
   
   / _ KeywordGoto _ to:Marker _ ";" {
-    return { type:"goto", to:to}
+    var loc = location();
+    return { type:"goto", to:to, lineno:loc["start"]["line"]}
   }
   
 TestLine "test case"
@@ -61,9 +64,6 @@ TestLine "test case"
   
 Marker "position marker"
   = MarkerAnchor 
-  / ":" lineno:Integer {
-    return {type:"lineno", val:lineno};
-  }
   / RelativeMarker
   
 MarkerAnchor "position anchor"
