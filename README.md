@@ -16,7 +16,7 @@ Control flow proceeds sequentially forwards unless changed by a `goto` or branch
 	:this123 /* code continues on this line */
 ```
 
-Within register commands, either `next` or `~` can be used to refer to the next line instead of an anchor.
+Within register commands, either `next` or `~` can be used to refer to the next line instead of an anchor. You cannot place an anchor on the same line as a `goto`.
 
 
 ### Registers
