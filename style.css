@@ -1,3 +1,9 @@
+/*
+ * Abacus Machine Simulator
+ * Gaurav Manek
+ *
+ */
+
 html, body {
 	height: 100%;
 	width: 100%;
@@ -173,17 +179,21 @@ a:hover {
 
 #runtimeOut {
 	padding-left: 5px;
-	border: solid thin darkgrey;
 }
 
 .runtimeReady {
-	background: white;
+	border: solid thin darkgrey;
+	border-left: 5px solid black;
 }
 
 .runtimeGood {
-	background: #89EA3A;
+	border: solid thin darkgrey;
+	border-left: 5px solid #05B904;
 }
 
 .runtimeError {
-	background: #FF7BBF;
+	border: solid thin darkgrey;
+	border-left: 5px solid #B90504;
+	background: #fdb2b1;
 }
+
