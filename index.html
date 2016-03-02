@@ -45,7 +45,7 @@ function rem([1],[2]) -> [rv] {
   :start
   cpy([1]) -> [rv];
   quo([1], [2]) -> [6];
-  [7]+, ~;
+  [7]+, next;
   [7]+;     // Proceed to next instruction by default
   [7]-;     // Proceed to next instruction by default
   [7]-, :start, :mainloop; // Specify the jumps otherwise
@@ -53,8 +53,8 @@ function rem([1],[2]) -> [rv] {
   
   :mainloop
   cpy([2]) -> [5];
-  [3]-, ~, ~; // Both branches go to the next instruction
-  [5]-, :mainloop, ~; // If not empty, continue. If empty, go to 15.
+  [3]-, next, next; // Both branches go to the next instruction
+  [5]-, :mainloop, next; // If not empty, continue. If empty, go to 15.
   [6]-, next, :mainloop; // If not empty, go to :mainloop
 } where {
   rem(5,7) is rem(12,7);

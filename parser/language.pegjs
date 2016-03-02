@@ -72,7 +72,7 @@ MarkerAnchor "position anchor"
   }
   
 RelativeMarker "relative position marker"
-  = "next"/"~" {
+  = "next" {
     return relativePositionMarker("next");
   }
 
