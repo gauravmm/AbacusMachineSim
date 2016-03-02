@@ -1,7 +1,8 @@
-// 
+// Abacus Machine Simulator
+// Gaurav Manek
+
 // Syntax highlighting mode for our custom abacus machine language.
-// 
-// Uses CodeMirror.
+// Uses CodeMirror's simple mode.
 
 CodeMirror.defineSimpleMode("abacusmachine", {
   // The start state contains the rules that are intially used
