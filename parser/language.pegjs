@@ -1,5 +1,6 @@
 /*
  * Abacus Machine Grammar
+ * Gaurav Manek
  * ==========================
  * Built with PegJS
  * Large amounts of this grammar are borrowed from PegJS
@@ -22,7 +23,7 @@ Code
 Function
   = "function" _ name:Identifier _ "(" args:ArgumentList ")" _ "->" _ dest:ArgumentList _ "{" body: FunctionBody "}" test:(__ "where" __ "{" TestBody "}")? {
       return {name: name, args: args, return: dest, body: body,
-                 tests: (typeof test !== 'undefined')?test[4]:"" };
+                 tests: (test)?test[4]:[] };
     }
 
 FunctionBody
