@@ -16,14 +16,15 @@ var MACHINE_CONSTANTS = (function () {
 		CODE_TYPE_CALL 		: i++,
 		CODE_TYPE_REGISTER 	: i++,
 		CODE_TYPE_GOTO 		: i++,
-		CODE_TYPE_RETURN 	: i++
+		CODE_TYPE_RETURN 	: i++,
+		CODE_TYPE_VALUES    : i++
 	}
 })();
 
 var compiler = (function() {
 	"use strict";
 
-	var CompilerException = function(text, location) {
+	function CompilerException(text, location) {
 		this.message = text;
     	this.location = location;
 	};
@@ -46,6 +47,20 @@ var compiler = (function() {
 		}
 		var anchors = {}; // Anchor positions
 		var jumpsToRewrite = [];
+
+		// Takes an object that represents a list of arguments,
+		// all of which must be numbers, not registers.
+		function mapValues(rlist, obj) {
+			var rv = [];
+			for (var i = 0; i < rlist.length; i++) {	
+				if (rlist[i].type == "integer") {
+					rv.push(ENCODE_INTEGER(rlist[i].val));
+				} else {
+					abacm$except("Number expected, but register found.", obj.lineno);
+				}
+			}
+			return rv;
+		}
 
 		// Takes an object that represents a function argument,
 		// If it is a register, adds it to rv.regs. If not, it 
@@ -187,8 +202,39 @@ var compiler = (function() {
 			}
 		}
 
-		// TODO: Tests 
+		// Tests 
 		var tests = [];
+
+		function testFunction(l, t) {
+			return {
+				type: MACHINE_CONSTANTS.CODE_TYPE_CALL,
+				// The input to the function call, as registers or integers
+				in: mapValues(l.args),
+				fn: l.name,
+				lineno: t.lineno
+			};
+		}
+
+		// For each test, store it in the new format, with
+		// the function call in lhs, and the comparing function call
+		// or list of values in rhs.
+
+		// We enforce the "only numbers no registers" rule here.  
+		for(var i = 0; i < fn.tests.length; ++i) {
+			var l = fn.tests[i].lhs;
+			if(l.type != "functioncall") {
+				abacm$except("Expected a function call on the left-hand side.", fn.tests[i].lineno);
+			}
+			var lhs = testFunction(l, fn.tests[i]);
+
+			var r = fn.tests[i].rhs;
+			var rhs;
+			if(r.type == "functioncall") {
+				rhs = testFunction(r, fn.tests[i]);
+			} else if (r.type == "arglist"){
+				rhs = mapValues(r.val, fn.tests[i]);
+			}
+		}
 
 		return {
 			code: rv,
@@ -203,13 +249,15 @@ var compiler = (function() {
 })();
 
 
-/*
-machineFactory = (function() {
+var machine = function(compiled) {
   "use strict";
+
+  var code = compiled.code;
+
+
 
   return {
     SyntaxError: peg$SyntaxError,
     parse:       peg$parse
   };
-})();
-*/
+}
