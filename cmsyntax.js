@@ -15,7 +15,7 @@ CodeMirror.defineSimpleMode("abacusmachine", {
      token: ["keyword", null, "variable"]},
     // Rules are matched in the order in which they appear, so there is
     // no ambiguity between this one and the one above
-    {regex: /((?:function|goto|where|next|is)\b)|(?:~)/,
+    {regex: /((?:function|goto|where|next|is)\b)/,
      token: "keyword"},
     {regex: /\[[a-z0-9$]+\]/i, token: "variable-2"},
     {regex: /:[a-z0-9_$]+\w/i, token: "atom"},
