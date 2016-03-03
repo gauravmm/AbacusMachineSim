@@ -18,6 +18,7 @@ Control flow proceeds sequentially forwards unless changed by a `goto` or branch
 
 Within register commands, either `next` or `~` can be used to refer to the next line instead of an anchor. You cannot place an anchor on the same line as a `goto`.
 
+Runtime detection of infinite loops has been implemented, so some types of infinite loops will stop the engine automatically.
 
 ### Registers
 
