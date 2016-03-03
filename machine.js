@@ -256,6 +256,8 @@ var Compiler = (function() {
 // A simple loop-detecting object, used to check for infinite GOTO loops
 // and mutual recursion.
 function RepetitionDetector() {
+	"use strict";
+
 	var loop = [];
 
 	function repdec$push(id) {
@@ -275,7 +277,7 @@ function RepetitionDetector() {
 		return loop.slice(startpos, loop.length);
 	}
 
-	function repdec$pop(id) {
+	function repdec$pop() {
 		var cmpid = loop.pop();
 	}
 
@@ -297,49 +299,82 @@ function RepetitionDetector() {
 	};
 }
 
-
-function Machine(compiled, args, options) {
+// Object representing a function call
+// _fn is the function name
+// _in is the argument list
+// _out is either zero to unrestrict the return tuple size, or
+//    positive with the expected length of returned tuple.
+function FunctionCall(_fn, _in, _out) {
 	"use strict";
 
-	function MachineException(text, location) {
-		this.message = text;
-		this.location = location;
+	// Returns true if the function name and signature match,
+	// throws an exception if the name matches but signatures do not,
+	// returns false otherwise.
+	function fncall$match(other) {
+		if(_fn != other.name)
+			return false;
+		if(_in.length != other.args.length ||  (_out == 0 || _out != other.rets.length))
+			throw new MachineException("Function \"" + _fn + "\" with correct name but incorrect signature found");
+		return true;
+	}
+
+	return {
+		fn: fn, 
+		in: _in,
+		out: _out,
+		matches: fncall$match
 	};
+}
+
+function MachineException(text, location) {
+	this.message = text;
+	this.location = location;
+};
+
+
+// A Machine object represents the result of running a single function. It relies
+// on a MachineRunner object to handle recursion and the stack.
+//   compiled: The code object 
+//    options: configuration options for the machine
+//     - exceptionOnNegativeRegister : Throw an exception if a 0-valued register is decremented.
+function Machine(compiled, args, options) {
+	"use strict";
 
 	function abacm$except(text, location) {
 		throw new MachineException(text, location);
 	}
 
-	var code = compiled.code;
+	var code = compiled;
 	var opts = options;
 	var registers = [];
 	var curr = 0;
 	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
 	var loopDetector = RepetitionDetector();
 	
-	// Initialize the registers
-	for(var i = 0; i < code.regs.length; ++i) {
-		registers.push(0);
-	}
-	
-	// Check the argument array
-	if(code.args.length != args.length)
-		abacm$except("Incorrect number of arguments to function.", code.lineno);
-	// Copy the arguments into the registers.
-	for(var i = 0; i < code.args.length; ++i) {
-		if(args[i] < 0) {
-			abacm$except("Negative argument to function.", code.lineno);
+	function abacm$init(compiled, args) {
+		// Initialize the registers
+		for(var i = 0; i < code.regs.length; ++i) {
+			registers.push(0);
 		}
-		registers[code.args[i]] = args[i];
+		
+		// Check the argument array
+		if(code.args.length != args.length)
+			abacm$except("Incorrect number of arguments to function.", code.lineno);
+		// Copy the arguments into the registers.
+		for(var i = 0; i < code.args.length; ++i) {
+			if(args[i] < 0) {
+				abacm$except("Negative argument to function.", code.lineno);
+			}
+			registers[code.args[i]] = args[i];
+		}
 	}
 
 	// Advances the state of the machine by one step, accepts parameters:
 	//  returns: returns by the recursive function call, if one is expected. null otherwise.
-	//  options: options to use when processing this.
-	//     - exceptionOnNegativeRegister : Throw an exception if a 0-valued register is decremented.
-	function abacm$next(returns, options) {
+	function abacm$next(returns) {
 		var rv = {}; // Return value
 		var cL = code.exec[curr]; // The line to evaluate at this step.
+
 		// Check the current state and evolve the machine:
 		if (state == MACHINE_CONSTANTS.EXEC_HALTED) {
 			abacm$except("Attempting to run halted machine.", cL.lineno);
@@ -381,25 +416,20 @@ function Machine(compiled, args, options) {
 			// We look at the current state and figure out what to do next based on this.
 			if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
 				// Oh, goody, we need to call a function.
-				var fncall = {
-					fn: cL.fn, // Function name
-					out: cL.out.length, // Expected number of return values
-					in: [] // Parameters to pass the function
-				}
-
+				fnArgs = [];
 				// Populate fncall.in with the values of various argument
 				for(var i=0;  i<cL.in.length; i++) {
 					if(cL.in[i] < 0) {
 						// If this is a value argument, decode it.
-						fncall.push(DECODE_INTEGER(cL.in[i]));
+						fnArgs.push(DECODE_INTEGER(cL.in[i]));
 					} else {
 						// If this is a register argument, copy the value.
-						fncall.push(registers[cL.in[i]]);
+						fnArgs.push(registers[cL.in[i]]);
 					}
 				}
 
 				// Put this in the return value.
-				rv.functioncall = fncall;
+				rv.functioncall = FunctionCall(cL.fn, fnArgs, cL.out.length);
 				// Change the state to WAITING
 				state = MACHINE_CONSTANTS.EXEC_WAITING;
 
@@ -415,7 +445,7 @@ function Machine(compiled, args, options) {
 					registers[cL.register]++;
 					curr = cL.next;
 				} else { // Decrement
-					if(options.exceptionOnNegativeRegister && registers[cL.register] == 0)
+					if(opts.exceptionOnNegativeRegister && registers[cL.register] == 0)
 						abacm$except("Decrementing the zero-valued register [" + cL.register + "]", cL.lineno);
 					
 					// Decrement the register if positive
@@ -452,7 +482,12 @@ function Machine(compiled, args, options) {
 		}
 		// Incorporate the state into the return value.
 		rv.state = state;
+		rv.lineno = code.excec[curr].lineno;
 		return rv;
+	}
+
+	function abacm$set(adj) {
+		abacm$except("Setting values is not supported yet.", cL.lineno);
 	}
 
 	function abacm$state() {
@@ -465,8 +500,103 @@ function Machine(compiled, args, options) {
 		}
 	}
 
+	abacm$init(compiled, args);
 	return {
-		next:     abacm$next,
-		getState: abacm$state
+		step:     abacm$next,
+		getState: abacm$state,
+		set: abacm$set
+	};
+}
+
+// Handles the stack, spins up a Machine object for each level 
+//   allfn: an array of all compiled functions,
+//   fcall: a FunctionCall object representing the function call to make.
+function MachineRunner(_allfn, _fcall, _options) {
+	"use strict";
+
+	var funcs = _allfn;
+	var opts = options;
+	var stack = [];
+	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
+	var recursionDetector = RepetitionDetector();
+	var retval = null;
+
+	function mrun$except(text, location) {
+		throw new MachineException(text, location);
+	}
+
+	// Start a new function call, deepening the stack.
+	function mrun$invokefunc(fcall) {
+		// Check for recursion
+		if(recursionDetector.push(fcall.fn))
+			mrun$except("Attempted recursion.", fcall.lineno);
+
+		var f = funcs.find(fcall.matches);
+		if(!f)
+			mrun$except("Cannot find function \"" + fcall.fn + "\".");
+
+		// Since fcall.matches checks the function signature, we can use it without
+		// further checking.
+		var m = Machine(f, args, opts);
+		stack.push(m);
+	}
+
+	function mrun$returnfunc() {
+		recursionDetector.pop();
+		stack.pop();
+	}
+
+	// Initializer, simply invokes the function.
+	function mrun$init(allfn, fcall) {
+		mrun$invokefunc(fcall);
+	}
+
+	function mrun$next() {
+		// Get the machine corresponding to the innermost state
+		var m = stack[stack.length - 1];
+		// Advance it by one step, including the previous return value if one is set.
+		var s = m.next(retval);
+		retval = null; // Reset retval, if not already done.
+		
+		if(s.state == MACHINE_CONSTANTS.EXEC_RUNNING) {
+			// Do nothing, the machine is still running.
+
+		} else if(s.state == MACHINE_CONSTANTS.EXEC_WAITING) {
+			// s.functioncall contains the function call that m needs to continue.
+			if(!s.functioncall)
+				mrun$except("Machine WAITING without a pending function call.", s.lineno);
+
+			// Invoke the recursive function.
+			mrun$invokefunc(s.functioncall);
+
+		} else if(s.state == MACHINE_CONSTANTS.EXEC_HALTED) {
+			// s.retval contains the returned value.
+			if(!s.retval)
+				mrun$except("Machine HALTED without a return value.", s.lineno);
+
+			// Store the return value in retval for the next invocation.
+			retval = s.retval;
+
+			// Return the function.
+			mrun$returnfunc();
+		}
+	}
+
+	// Returns a state descriptor, used to render the view of
+	// the inner workings of the machine.
+	function mrun$state() {
+		return stack.map(function(st) { return st.getState(); });
+	}
+
+	// Set a value in one of the machines.
+	function mrun$set() {
+		mrun$except("Setting values is not supported.", s.lineno);
+	}
+
+	mrun$init(_allfn, _fcall);
+	return {
+		step:     mrun$next,
+		getState: mrun$state,
+		set:      mrun$set
 	};
 }
