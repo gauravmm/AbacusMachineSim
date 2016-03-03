@@ -13,20 +13,24 @@ function DECODE_INTEGER(v) { return -v-1; }
 var MACHINE_CONSTANTS = (function () {
 	var i = 0;
 	return {
-		CODE_TYPE_CALL 		: i++,
-		CODE_TYPE_REGISTER 	: i++,
-		CODE_TYPE_GOTO 		: i++,
-		CODE_TYPE_RETURN 	: i++,
-		CODE_TYPE_VALUES    : i++
+		CODE_TYPE_CALL     : i++,
+		CODE_TYPE_REGISTER : i++,
+		CODE_TYPE_GOTO     : i++,
+		CODE_TYPE_RETURN   : i++,
+		CODE_TYPE_VALUES   : i++,
+
+		EXEC_RUNNING       : i++,
+		EXEC_HALTED        : i++,
+		EXEC_WAITING       : i++
 	}
 })();
 
-var compiler = (function() {
+var Compiler = (function() {
 	"use strict";
 
 	function CompilerException(text, location) {
 		this.message = text;
-    	this.location = location;
+			this.location = location;
 	};
 
 	function abacm$except(text, location) {
@@ -43,7 +47,8 @@ var compiler = (function() {
 			rets: [], // The registers to return.
 			deps: [], // Dependencies
 			regs: [], // Registers
-			exec: []  // Code to execute
+			exec: [],  // Code to execute
+			lineno: fn.lineno
 		}
 		var anchors = {}; // Anchor positions
 		var jumpsToRewrite = [];
@@ -248,16 +253,220 @@ var compiler = (function() {
 	};
 })();
 
+// A simple loop-detecting object, used to check for infinite GOTO loops
+// and mutual recursion.
+function RepetitionDetector() {
+	var loop = [];
 
-var machine = function(compiled) {
-  "use strict";
+	function repdec$push(id) {
+		if(loop.indexOf(id) >= 0) {
+			return true;
+		}
+		loop.push(id);
+		return false;	
+	}
 
-  var code = compiled.code;
+	function repdec$getLoop(id) {
+		var startpos = loop.indexOf(id);
+		if(startpos < 0) {
+			return [];
+		}
+		// Note use of slice, not s_p_lice, here:
+		return loop.slice(startpos, loop.length);
+	}
+
+	function repdec$pop(id) {
+		var cmpid = loop.pop();
+	}
+
+	function repdec$reset() {
+		loop = [];
+	}	
+
+	return {
+		// Returns true if a repetition is found,
+		// false otherwise. Once it returns true,
+		// further pushes are disallowed.
+		push : repdec$push,
+		// Remove the last element in the checker.
+		pop  : repdec$pop,
+		// Reset the repetition checker.
+		reset: repdec$reset,
+		// Get the loop state
+		getLoop: repdec$getLoop
+	};
+}
 
 
+function Machine(compiled, args, options) {
+	"use strict";
 
-  return {
-    SyntaxError: peg$SyntaxError,
-    parse:       peg$parse
-  };
+	function MachineException(text, location) {
+		this.message = text;
+		this.location = location;
+	};
+
+	function abacm$except(text, location) {
+		throw new MachineException(text, location);
+	}
+
+	var code = compiled.code;
+	var opts = options;
+	var registers = [];
+	var curr = 0;
+	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
+	var loopDetector = RepetitionDetector();
+	
+	// Initialize the registers
+	for(var i = 0; i < code.regs.length; ++i) {
+		registers.push(0);
+	}
+	
+	// Check the argument array
+	if(code.args.length != args.length)
+		abacm$except("Incorrect number of arguments to function.", code.lineno);
+	// Copy the arguments into the registers.
+	for(var i = 0; i < code.args.length; ++i) {
+		if(args[i] < 0) {
+			abacm$except("Negative argument to function.", code.lineno);
+		}
+		registers[code.args[i]] = args[i];
+	}
+
+	// Advances the state of the machine by one step, accepts parameters:
+	//  returns: returns by the recursive function call, if one is expected. null otherwise.
+	//  options: options to use when processing this.
+	//     - exceptionOnNegativeRegister : Throw an exception if a 0-valued register is decremented.
+	function abacm$next(returns, options) {
+		var rv = {}; // Return value
+		var cL = code.exec[curr]; // The line to evaluate at this step.
+		// Check the current state and evolve the machine:
+		if (state == MACHINE_CONSTANTS.EXEC_HALTED) {
+			abacm$except("Attempting to run halted machine.", cL.lineno);
+		} else if (state == MACHINE_CONSTANTS.EXEC_WAITING) {
+			// We've been invoked after sending a request to call a function.
+			// Make sure that we have the desired values.
+			if(cL.type != MACHINE_CONSTANTS.CODE_TYPE_CALL) 
+				abacm$except("Internal error, in EXEC_WAITING state but not at a function.", cL.lineno);
+			
+			if(!returns) 
+				abacm$except("Expected return values from function call.", cL.lineno);
+			
+			if(returns.length != cL.out.length)
+				abacm$except("Expected " + cL.out.length + " return values from function call, " + returns.length + " received.", cL.lineno);
+
+			// Now we copy the returned values to the appropriate registers
+			for(var i = 0; i < returns.length; ++i) {
+				if(returns[i] < 0)
+					abacm$except("Negative value returned by " + cL.fn + " return values :" + ", ".join(returns) + ".", cL.lineno);
+
+				registers[cL.out[i]] = returns[i];
+			}
+
+			// Excellent, we're done now! We advance `curr` to the next state and change `state`:
+			curr = cL.next;
+			state = MACHINE_CONSTANTS.EXEC_RUNNING;
+		} else if (state == MACHINE_CONSTANTS.EXEC_RUNNING) {
+			// We're expecting an null value for returns, so we enforce that.
+			if(returns)
+				abacm$except("Expected no return values.", cL.lineno);
+
+			// Use the loopDetector to check if we have visited this state before,
+			// without going through a branching jump.
+			// Since the only branching jump is with register subtractions, we reset
+			// loopDetector there.		
+			if(loopDetector.push(curr))
+				abacm$except("Infinite loop detected in code, see lines " + ", ".join(loopDetector.getLoop(curr)) + ".", cL.lineno);
+			
+			// We look at the current state and figure out what to do next based on this.
+			if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
+				// Oh, goody, we need to call a function.
+				var fncall = {
+					fn: cL.fn, // Function name
+					out: cL.out.length, // Expected number of return values
+					in: [] // Parameters to pass the function
+				}
+
+				// Populate fncall.in with the values of various argument
+				for(var i=0;  i<cL.in.length; i++) {
+					if(cL.in[i] < 0) {
+						// If this is a value argument, decode it.
+						fncall.push(DECODE_INTEGER(cL.in[i]));
+					} else {
+						// If this is a register argument, copy the value.
+						fncall.push(registers[cL.in[i]]);
+					}
+				}
+
+				// Put this in the return value.
+				rv.functioncall = fncall;
+				// Change the state to WAITING
+				state = MACHINE_CONSTANTS.EXEC_WAITING;
+
+				// We don't change the pointer curr yet, that happens
+				// upon function return.
+
+			} else if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_GOTO) {
+				curr = cL.next; // Go to the given line.
+
+			} else if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_REGISTER) {
+				// Check if need to increment or decrement:
+				if(cL.increment) { // Increment
+					registers[cL.register]++;
+					curr = cL.next;
+				} else { // Decrement
+					if(options.exceptionOnNegativeRegister && registers[cL.register] == 0)
+						abacm$except("Decrementing the zero-valued register [" + cL.register + "]", cL.lineno);
+					
+					// Decrement the register if positive
+					if (registers[cL.register] > 0)
+						registers[cL.register]--;
+					
+					// Branch depending on the value of the register
+					if (registers[cL.register] == 0) {
+						curr = cL.next_zero;
+					} else {
+						curr = cL.next_pos;
+					}
+
+					// Reset the infinite loop detection, because we've found a branching instruction:
+					loopDetector.reset();
+				}
+				
+			} else if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+				// Oh, goody! We're done with this function. We return values in 
+				// rv.retval;
+				rv.retval = [];
+				for(var i = 0; i < code.rets.length; ++i)
+					rv.retval.push(registers[code.rets[i]]);
+
+				// And we change the state to HALTED
+				state = MACHINE_CONSTANTS.EXEC_HALTED;
+
+			} else if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_VALUES) {
+				// Wait, what? How did this ever make it all the way to the machine?
+				abacm$except("Unexpected line type: values.", cL.lineno);
+			} else {
+				abacm$except("Unexpected line type.", cL.lineno);
+			}
+		}
+		// Incorporate the state into the return value.
+		rv.state = state;
+		return rv;
+	}
+
+	function abacm$state() {
+		// Output the current state in a nice manner, easy for the visualization system to use.
+		return {
+			nextline: code.exec[curr].lineno,
+			registers: code.regs,
+			values: registers,
+			state: state
+		}
+	}
+
+	return {
+		next:     abacm$next,
+		getState: abacm$state
+	};
 }

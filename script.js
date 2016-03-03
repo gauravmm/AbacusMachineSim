@@ -47,11 +47,11 @@ function run() {
 	if (parse.length > 0) {
 		try {
 			for (var i = parse.length - 1; i >= 0; i--) {
-				var fn = compiler.compile(parse[i]); // fn contains the specification and test for one function
+				var fn = Compiler.compile(parse[i]); // fn contains the specification and test for one function
 				console.log(fn);
 			}
 		} catch (err) {
-			if (err instanceof compiler.CompilerException) {
+			if (err instanceof Compiler.CompilerException) {
 				error(err.message, err.location);
 				return;
 			} else {
