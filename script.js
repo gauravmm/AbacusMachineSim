@@ -42,14 +42,14 @@ function run() {
 	if(LOGGING)
 		console.log("Parsing complete: " + Math.round(performance.now() - t_start) + " ms")
 
-	console.log(parse);
-
+	var compiled;
+	var tests;
+	
 	if (parse.length > 0) {
 		try {
-			for (var i = parse.length - 1; i >= 0; i--) {
-				var fn = Compiler.compile(parse[i]); // fn contains the specification and test for one function
-				console.log(fn);
-			}
+			compiled = parse.map(Compiler.compile);
+			console.log(compiled);
+			tests = TestEngine(compiled);
 		} catch (err) {
 			if (err instanceof Compiler.CompilerException) {
 				error(err.message, err.location);
@@ -60,6 +60,7 @@ function run() {
 		}
 	} else {
 		error("No functions defined.");
+		return;
 	}
 
 	var t_end = performance.now();

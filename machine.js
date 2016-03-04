@@ -21,8 +21,10 @@ var MACHINE_CONSTANTS = (function () {
 
 		EXEC_RUNNING       : i++,
 		EXEC_HALTED        : i++,
-		EXEC_WAITING       : i++
-	}
+		EXEC_WAITING       : i++,
+
+		TEST_EQUALITY      : i++
+	};
 })();
 
 var Compiler = (function() {
@@ -52,20 +54,6 @@ var Compiler = (function() {
 		}
 		var anchors = {}; // Anchor positions
 		var jumpsToRewrite = [];
-
-		// Takes an object that represents a list of arguments,
-		// all of which must be numbers, not registers.
-		function mapValues(rlist, obj) {
-			var rv = [];
-			for (var i = 0; i < rlist.length; i++) {	
-				if (rlist[i].type == "integer") {
-					rv.push(ENCODE_INTEGER(rlist[i].val));
-				} else {
-					abacm$except("Number expected, but register found.", obj.lineno);
-				}
-			}
-			return rv;
-		}
 
 		// Takes an object that represents a function argument,
 		// If it is a register, adds it to rv.regs. If not, it 
@@ -210,12 +198,31 @@ var Compiler = (function() {
 		// Tests 
 		var tests = [];
 
+		// Takes an object that represents a list of arguments,
+		// all of which must be numbers, not registers.
+		function mapValues(rlist, obj) {
+			var rv = rlist.map(function (v) {
+				if(v.type != "integer")
+					abacm$except("Number expected, but register found.", obj.lineno);
+				return v.val;
+			});
+
+			return rv;
+		}
+
 		function testFunction(l, t) {
 			return {
 				type: MACHINE_CONSTANTS.CODE_TYPE_CALL,
-				// The input to the function call, as registers or integers
-				in: mapValues(l.args),
+				in: mapValues(l.args.val, t),
 				fn: l.name,
+				lineno: t.lineno
+			};
+		}
+
+		function testValues(va, t) {
+			return {
+				type: MACHINE_CONSTANTS.CODE_TYPE_VALUES,
+				values: mapValues(va.val, t),
 				lineno: t.lineno
 			};
 		}
@@ -237,8 +244,14 @@ var Compiler = (function() {
 			if(r.type == "functioncall") {
 				rhs = testFunction(r, fn.tests[i]);
 			} else if (r.type == "arglist"){
-				rhs = mapValues(r.val, fn.tests[i]);
+				rhs = testValues(r, fn.tests[i]);
 			}
+
+			tests.push({
+				lhs: lhs,
+				rhs: rhs,
+				mode: MACHINE_CONSTANTS.TEST_EQUALITY
+			});
 		}
 
 		return {
@@ -514,6 +527,7 @@ function Machine(compiled, args, options) {
 function MachineRunner(_allfn, _fcall, _options) {
 	"use strict";
 
+	var step = 0;
 	var funcs = _allfn;
 	var opts = options;
 	var stack = [];
@@ -580,6 +594,8 @@ function MachineRunner(_allfn, _fcall, _options) {
 			// Return the function.
 			mrun$returnfunc();
 		}
+
+		step++;
 	}
 
 	// Returns a state descriptor, used to render the view of
@@ -599,4 +615,109 @@ function MachineRunner(_allfn, _fcall, _options) {
 		getState: mrun$state,
 		set:      mrun$set
 	};
+}
+
+// Uses a topological sort to order tests, so that the
+// function that is at the very tail of the dependency
+// DAG is tested first.
+//
+// The _listener is called each time a test succeeds, and
+// notifies the UI each time a test passes or fails, and
+// when all tests associated with a function pass.
+function TestEngine(__compiledOutput, _listener) {
+	"use strict"
+	var tests = [];
+	var testFunc = [];
+	var lastInFunction = null;
+	var ct = 0;
+	var cp = 0;
+	var passedAllTests = true;
+	var prevTest = null;
+	var listener = _listener;
+
+	function tests$init(_compiledOutput) {
+		var fn = [];
+		var deps = [];
+
+		_compiledOutput.forEach(function(v) {
+			fn.push(v.code.name);
+			deps.push(v.code.deps.map(function(z) { return z.name; }));
+		});
+
+
+		while(fn.length > 0) {
+			// Strip all functions that are not in the pending list.
+			deps = deps.map(function (v) {
+				return v.filter(function(z) {
+					return fn.indexOf(z) >= 0;
+				});
+			});
+
+			// There should be at least one function that has 0 dependencies
+			// at each step, otherwise there is a cycle somewhere.
+			var empties = deps.reduce(function(arr, v, idx) {
+				return (v.length == 0)?arr.concat(idx):arr;
+			}, []);
+
+			if(empties.length == 0)
+				throw new MachineException("Circular dependency detected when preparing tests.");
+
+			// Prepend the functions to the list, maintaining the topological order.
+			testFunc = empties.map(function(v) { return fn[v]; }).concat(testFunc);
+
+			// Remove all corresponding elements from fn and deps.
+			var emptyRemoveFunction = function (v, idx) {
+				return empties.indexOf(idx) < 0;
+			};
+			fn = fn.filter(emptyRemoveFunction);
+			deps = deps.filter(emptyRemoveFunction);
+		}
+
+		// Now all functions are in testFunc, topologically sorted.
+		tests = testFunc.map(function(fn) {
+			return _compiledOutput.find(function(v) {
+				return v.code.name == fn;
+			});
+		});
+
+		// Now we filter by those that do not have any tests associated with them.
+	}
+
+	function tests$hasTest() {
+		return (tests.length > 0);
+	}
+
+	function tests$nextTest() {
+		var tt = tests[tests.length - 1];
+		prevTest = tt.pop();
+
+		if(tt.length == 0) {
+			tests.pop();
+			lastInFunction = testFunc.pop();
+		} else {
+			lastInFunction = null;
+		}
+
+		return prevTest;
+	}
+
+	// Return true if we should continue, false otherwise.
+	function tests$status(succ) {
+		passedAllTests = succ && passedAllTests;
+		if(listener) {
+			listener(prevTest, succ, lastInFunction);
+		}
+		if(!passedAllTests && lastInFunction) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	tests$init(__compiledOutput);
+	return {
+		hasTest: tests$hasTest,
+		nextTest: tests$nextTest,
+		status: tests$status
+	}
 }
