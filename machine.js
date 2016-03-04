@@ -213,8 +213,7 @@ var Compiler = (function() {
 		function testFunction(l, t) {
 			return {
 				type: MACHINE_CONSTANTS.CODE_TYPE_CALL,
-				in: mapValues(l.args.val, t),
-				fn: l.name,
+				fcall: FunctionCall(l.name, mapValues(l.args.val, t), 0),
 				lineno: t.lineno
 			};
 		}
@@ -326,13 +325,13 @@ function FunctionCall(_fn, _in, _out) {
 	function fncall$match(other) {
 		if(_fn != other.name)
 			return false;
-		if(_in.length != other.args.length ||  (_out == 0 || _out != other.rets.length))
-			throw new MachineException("Function \"" + _fn + "\" with correct name but incorrect signature found");
+		if(_in.length != other.args.length ||  (_out > 0 && _out != other.rets.length))
+			throw MachineException("Function \"" + _fn + "\" with correct name but incorrect signature found");
 		return true;
 	}
 
 	return {
-		fn: fn, 
+		fn: _fn, 
 		in: _in,
 		out: _out,
 		matches: fncall$match
@@ -429,7 +428,7 @@ function Machine(compiled, args, options) {
 			// We look at the current state and figure out what to do next based on this.
 			if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
 				// Oh, goody, we need to call a function.
-				fnArgs = [];
+				var fnArgs = [];
 				// Populate fncall.in with the values of various argument
 				for(var i=0;  i<cL.in.length; i++) {
 					if(cL.in[i] < 0) {
@@ -495,7 +494,7 @@ function Machine(compiled, args, options) {
 		}
 		// Incorporate the state into the return value.
 		rv.state = state;
-		rv.lineno = code.excec[curr].lineno;
+		rv.lineno = code.exec[curr].lineno;
 		return rv;
 	}
 
@@ -529,7 +528,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 
 	var step = 0;
 	var funcs = _allfn;
-	var opts = options;
+	var opts = _options;
 	var stack = [];
 	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
 	var recursionDetector = RepetitionDetector();
@@ -551,7 +550,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 
 		// Since fcall.matches checks the function signature, we can use it without
 		// further checking.
-		var m = Machine(f, args, opts);
+		var m = Machine(f, fcall.in, opts);
 		stack.push(m);
 	}
 
@@ -569,7 +568,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 		// Get the machine corresponding to the innermost state
 		var m = stack[stack.length - 1];
 		// Advance it by one step, including the previous return value if one is set.
-		var s = m.next(retval);
+		var s = m.step(retval);
 		retval = null; // Reset retval, if not already done.
 		
 		if(s.state == MACHINE_CONSTANTS.EXEC_RUNNING) {
@@ -677,18 +676,25 @@ function TestEngine(__compiledOutput, _listener) {
 		tests = testFunc.map(function(fn) {
 			return _compiledOutput.find(function(v) {
 				return v.code.name == fn;
-			});
+			}).tests;
 		});
 
-		// Now we filter by those that do not have any tests associated with them.
+		tests$removeTrailingEmpties();
 	}
 
 	function tests$hasTest() {
 		return (tests.length > 0);
 	}
 
+	function tests$removeTrailingEmpties(){
+		while(tests.length > 0 && tests[tests.length - 1].length == 0){
+			tests.pop();
+		}
+	}
+
 	function tests$nextTest() {
 		var tt = tests[tests.length - 1];
+		console.log(tt);
 		prevTest = tt.pop();
 
 		if(tt.length == 0) {
@@ -697,6 +703,8 @@ function TestEngine(__compiledOutput, _listener) {
 		} else {
 			lastInFunction = null;
 		}
+
+		tests$removeTrailingEmpties();
 
 		return prevTest;
 	}
@@ -717,7 +725,7 @@ function TestEngine(__compiledOutput, _listener) {
 	tests$init(__compiledOutput);
 	return {
 		hasTest: tests$hasTest,
-		nextTest: tests$nextTest,
+		next: tests$nextTest,
 		status: tests$status
 	}
 }
