@@ -19,7 +19,7 @@ body {
 	font-size: 90%;
 }
 
-pre, code, .code, .CodeMirror, #stack {
+pre, code, .code, .CodeMirror, #stack, #registers, #runtimeOut {
 	font-family: 'Inconsolata', Courier, monospace;
 }
 
@@ -152,17 +152,9 @@ a:hover {
 	flex: 1 1 auto;
 }
 
-#btnRun {
-	width: 60%;
-	width: calc(70% - 5px);
-	margin-right: 5px;
-}
-#btnGraphViz {
-	width: 30%;
-}
-
 #runtimeOut {
 	padding-left: 5px;
+	cursor: pointer;
 }
 
 .runtimeReady {
@@ -209,7 +201,6 @@ a:hover {
  */
 
 #stack {
-	width: 100%;
 	margin: 7px 0;
 }
 
@@ -320,4 +311,30 @@ a:hover {
 
 #registers {
 	flex: 1 1 auto;
+	margin: 0 -5px 0 0;
+	padding: 7px 5px 5px 0;
+	overflow-y: scroll;
+}
+
+#registers>div {
+	display: flex;
+	flex-direction: row;
+	padding: 2px 4px;
+}
+#registers>div:nth-child(2n+1) {
+	background: #F7F7F7;
+}
+
+#registers .registerName {
+	text-align: right;
+	color: #05a;
+	flex: 1 1 auto;
+}
+#registers .equals {
+	padding: 0 0.5em;
+}
+#registers input {
+	background: inherit;
+	border: none;
+	width: 4em;
 }

@@ -10,6 +10,7 @@ var LOGGING = true;
 
 
 // Global variables
+var isRunning = false;
 var editor;
 var allfunc;
 var tests;
@@ -27,13 +28,18 @@ function start(){
     	theme: "default",
 		lineWrapping: true
   	});
+
+  	$('runtimeOut').onclick = compileAndTest;
+  	document.onkeyup = handleKeyboardShortcuts;
 };
 
-// This function is invoked when the "run" button is pressed.
-// It runs the parser, performs intermediate operations, and 
-// executes the code on the machine simulator.
-function run() {
+// This function is invoked when someone clicks the top banner
+// or hits ctrl+enter. It runs the parser, performs intermediate
+// operations, and loads the code on the machine simulator.
+function compileAndTest() {
 	var t_start = performance.now();
+	var wasRunning = isRunning;
+	isRunning = false;
 	var parse;
 	try {
 		parse = parser.parse(editor.getValue());
@@ -55,15 +61,15 @@ function run() {
 			// All the functions
 			allfunc = compiled.map(function(v) { return v.code; });
 
+			// TODO: Loop through all the tests and see if something fails.
 			var t = tests.next();
 			runner = MachineRunner(allfunc, t.lhs.fcall, {});
-
-			redrawState();
 
 		} catch (err) {
 			console.log(err);
 			if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
 				error(err.message, err.location);
+				redrawState();
 				return;
 			} else {
 				throw err;
@@ -75,10 +81,64 @@ function run() {
 	}
 
 	var t_end = performance.now();
-	success("Execution complete: " + Math.round(t_end - t_start) + " ms");
+	success("Building and testing complete in " + Math.round(t_end - t_start) + " ms");
 	if(LOGGING)
 		console.log("Execution complete: " + Math.round(t_end - t_start) + " ms")
 }
+
+function step() {
+	runner.step();
+	console.log(runner.getState());
+}
+
+//
+// Responding to UI events.
+//
+
+function run() {
+	compileAndTest();
+	redrawState();
+}
+
+// Toolbar buttons:
+function runToEnd() {
+
+}
+function stepInto() {
+
+}
+function stepOut() {
+
+}
+function stepOver() {
+
+}
+
+
+//
+// Keyboard Interaction
+//
+
+function handleKeyboardShortcuts(e) {
+  if(e.ctrlKey && e.keyCode == 188) { // "Ctrl+,"
+    stepOver();
+  } else if(e.ctrlKey && e.keyCode == 190) { // "Ctrl+."
+    stepInto();
+  } else if(e.ctrlKey && e.keyCode == 191) { // "Ctrl+/"
+    stepOut();
+  } else if(e.ctrlKey && e.keyCode ==  69) { // "Ctrl+e"
+  	runToEnd();
+  } else if(e.ctrlKey && e.keyCode ==  13) { // "Ctrl+Enter"
+  	compileAndTest();
+  } else {
+  	return;
+  }
+  e.preventDefault();
+}
+
+//
+// Error printing and jumping within the code.
+//
 
 function isNumeric(jump) {
 	return !isNaN(parseFloat(jump)) && isFinite(jump);
@@ -121,13 +181,6 @@ function success(str) {
 	}
 }
 
-function graphViz() {
-	runner.step();
-	console.log(runner.getState());
-	redrawState();
-}
-
-
 //
 // UI Drawing Functions
 //
@@ -137,7 +190,7 @@ function emptyNode(tgt) {
 		tgt.removeChild(tgt.childNodes[0]);
 }
 
-function switchView(isRunning) {
+function switchView() {
 	if(isRunning) {
 		$('defaultView').style.display = "none";
 		$('runningView').style.display = "flex";
@@ -151,7 +204,12 @@ function switchView(isRunning) {
 var stackTraceNodes = [];
 var currStackTraceNode = -1;
 function redrawState() {
-	switchView(true);
+	switchView();
+	// If nothing is running, wait to redraw.
+	// switchView has already covered up the problem.
+	if(!isRunning) {
+		return;
+	}
 
 	var tgt = $('stack');
 	var s = runner.getState();
@@ -189,15 +247,38 @@ function changeSelectedStackFrame(i) {
 	currStackTraceNode = i;
 
 	// Only the outermost frame in the stack trace is editable.
-	var editable = (stackTraceNodes.length - 1 == i);
+	var editable = ((stackTraceNodes.length - 1) == i);
 
 	var tgt = $('registers');
 	emptyNode(tgt);
 	var s = runner.getState(i);
 	
-	if(s) {
-		jumpTo(s.lineno);
-	} else {
-		// Error, stack frame not found
-	}
+	if(!s) 
+		return;
+
+	// Now we draw the latest register values:
+	s.registers.forEach(function (regName, i) {
+		var li = document.createElement('div');
+
+		var label = document.createElement('span');
+		label.className = "registerName";
+		label.appendChild(document.createTextNode("[" + regName + "]"));
+		li.appendChild(label);
+
+		var equals = document.createElement('span');
+		equals.className = "equals";
+		equals.appendChild(document.createTextNode("="));
+		li.appendChild(equals);
+
+		var number = document.createElement('input');
+		number.type = "number";
+		number.min = 0;
+		number.value = s.values[i];
+		number.readOnly = !editable;
+		li.appendChild(number);
+
+		tgt.appendChild(li);
+	});
+
+	jumpTo(s.lineno);
 }

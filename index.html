@@ -40,10 +40,10 @@
             <span class="btn" tooltip="Load and Run">&#9654;</span>
           </div>
           <div id="btnGrpStep" class="toolbarRow">
-            <span class="btn" tooltip="Run to End (Ctrl+,)">&#x21e5;</span>
-            <span class="btn" tooltip="Step Over (Ctrl+.)">&#x21b7;</span>
-            <span class="btn" tooltip="Step In (Ctrl+/)">&#x21b4;</span>
-            <span class="btn" tooltip="Step Out">&#x21b1;</span>
+            <span class="btn" onclick="runToEnd()" tooltip="Run to End (Ctrl+E)">&#x21e5;</span>
+            <span class="btn" onclick="stepOver()" tooltip="Step Over (Ctrl+,)">&#x21b7;</span>
+            <span class="btn" onclick="stepInto()" tooltip="Step In (Ctrl+.)">&#x21b4;</span>
+            <span class="btn" onclick="stepOut()" tooltip="Step Out (Ctrl+/)">&#x21b1;</span>
           </div>
         </div>
         <div id="registers"></div>
@@ -107,9 +107,6 @@ function b([1]) -> [1] {
   [1]+;
 }
 </textarea></div>
-      <div>
-        <button id="btnRun" onclick="run()">Build</button><button id="btnGraphViz" onclick="graphViz()">GraphViz</button>
-      </div>
     </div>
   </div>
 </div>
