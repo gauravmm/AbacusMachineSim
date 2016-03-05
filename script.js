@@ -140,9 +140,9 @@ function emptyNode(tgt) {
 function switchView(isRunning) {
 	if(isRunning) {
 		$('defaultView').style.display = "none";
-		$('runningView').style.display = "block";
+		$('runningView').style.display = "flex";
 	} else {
-		$('defaultView').style.display = "block";
+		$('defaultView').style.display = "flex";
 		$('runningView').style.display = "none";
 	}
 }
@@ -172,7 +172,7 @@ function redrawState() {
 		li.onclick = function(e) {
 			changeSelectedStackFrame(i);
 		}
-		ol.appendChild(li);
+		ol.insertBefore(li, ol.firstChild);
 		stackTraceNodes.push(li);
 	});
 	tgt.appendChild(ol);
@@ -191,7 +191,7 @@ function changeSelectedStackFrame(i) {
 	// Only the outermost frame in the stack trace is editable.
 	var editable = (stackTraceNodes.length - 1 == i);
 
-	var tgt = $('state');
+	var tgt = $('registers');
 	emptyNode(tgt);
 	var s = runner.getState(i);
 	
