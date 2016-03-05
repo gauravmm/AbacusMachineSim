@@ -362,6 +362,7 @@ function Machine(compiled, args, options) {
 	var curr = 0;
 	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
 	var loopDetector = RepetitionDetector();
+	var stepCount = 0;
 	
 	function abacm$init(compiled, args) {
 		// Initialize the registers
@@ -414,6 +415,7 @@ function Machine(compiled, args, options) {
 			curr = cL.next;
 			state = MACHINE_CONSTANTS.EXEC_RUNNING;
 		} else if (state == MACHINE_CONSTANTS.EXEC_RUNNING) {
+			stepCount++;
 			// We're expecting an null value for returns, so we enforce that.
 			if(returns)
 				abacm$except("Expected no return values.", cL.lineno);
@@ -505,10 +507,12 @@ function Machine(compiled, args, options) {
 	function abacm$state() {
 		// Output the current state in a nice manner, easy for the visualization system to use.
 		return {
-			nextline: code.exec[curr].lineno,
+			lineno: code.exec[curr].lineno,
 			registers: code.regs,
 			values: registers,
-			state: state
+			state: state,
+			name: code.name + "(" + args.join(", ") + ");",
+			steps: stepCount
 		}
 	}
 
@@ -599,7 +603,10 @@ function MachineRunner(_allfn, _fcall, _options) {
 
 	// Returns a state descriptor, used to render the view of
 	// the inner workings of the machine.
-	function mrun$state() {
+	function mrun$state(i) {
+		if(typeof i != "undefined") {
+			return stack[i].getState();
+		}
 		return stack.map(function(st) { return st.getState(); });
 	}
 

@@ -29,10 +29,31 @@
   </div>
 
   <div class="container">
-    <div class="stateArea"></div>
+    <div class="stateArea">
+      <div id="defaultView">Press run to build and test.
+      </div>
+      <div id="runningView" style="display: none;">
+        <div id="toolbar">
+          <div class="toolbarRow">
+            <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
+            <span class="btn" tooltip="Load and Pause">&#9654;&#9646;</span>
+            <span class="btn" tooltip="Load and Run">&#9654;</span>
+          </div>
+          <div id="btnGrpStep" class="toolbarRow">
+            <span class="btn" tooltip="Run to End (Ctrl+,)">&#x21e5;</span>
+            <span class="btn" tooltip="Step Over (Ctrl+.)">&#x21b7;</span>
+            <span class="btn" tooltip="Step In (Ctrl+/)">&#x21b4;</span>
+            <span class="btn" tooltip="Step Out">&#x21b1;</span>
+          </div>
+        </div>
+        <div id="stack"></div>
+        <div class="viewDivider"></div>
+        <div id="state"></div>
+      </div>
+    </div>
     <div class="inputArea">
-      <div id="runtimeOut" class="runtimeReady">Press Run to start.</div>
-      <div class="codeWrapper"><textarea id="code">// This is a comment
+      <div id="runtimeOut" class="runtimeReady">Click here or hit Ctrl+Enter to build and test.</div>
+      <div class="codeWrapper"><textarea id="codeArea">// This is a comment
 // This is another comment 
 /* This
  * is 
@@ -41,10 +62,17 @@
  * comment
  */
 
+function cpy([1]) -> [2] {
+  cpy1([1]) -> [2];
+}
+
+function cpy1([1]) -> [1] {
+  // Do nothing
+}
+
 function rem([1],[2]) -> [rv] {
   :start
   cpy([1]) -> [rv];
-  quo([1], [2]) -> [6];
   [7]+, next;
   [7]+;     // Proceed to next instruction by default
   [7]-;     // Proceed to next instruction by default
@@ -68,9 +96,19 @@ function recursionTest([1]) -> [2], [3] {
 } where {
   recursionTest(3) is 80, 2;
 }
+
+function a([1]) -> [1] {
+  [1]+;
+  b([1]) -> [1];
+  recursionTest([1]) -> [2], [3];
+}
+
+function b([1]) -> [1] {
+  [1]+;
+}
 </textarea></div>
       <div>
-        <button id="btnRun" onclick="run()">Run</button><button id="btnGraphViz" onclick="graphViz()">GraphViz</button>
+        <button id="btnRun" onclick="run()">Build</button><button id="btnGraphViz" onclick="graphViz()">GraphViz</button>
       </div>
     </div>
   </div>
