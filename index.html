@@ -43,12 +43,12 @@
       </div>
       <div id="runningView" style="display: none;">
         <div id="toolbar">
-          <div class="toolbarRow">
+          <div class="toolbarRow toolbarSmallGap">
             <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
             <span class="btn" tooltip="Load and Pause">&#9654;&#9646;</span>
             <span class="btn" tooltip="Load and Run">&#9654;</span>
           </div>
-          <div id="btnGrpStep" class="toolbarRow">
+          <div class="toolbarRow showWhenRunning">
             <span class="btn" onclick="runToEnd()" tooltip="Run to End (Ctrl+E)">&#x21e5;</span>
             <span class="btn" onclick="stepOver()" tooltip="Step Over (Ctrl+,)">&#x21b7;</span>
             <span class="btn" onclick="stepInto()" tooltip="Step In (Ctrl+.)">&#x21b4;</span>

@@ -39,12 +39,21 @@ function start(){
   	document.onkeyup = handleKeyboardShortcuts;
 };
 
+function setRunner(r) {
+	runner = r;
+	if(r) {
+		$('runningView').className = "codeRunning";
+	} else {
+		$('runningView').className = "codeNotRunning";
+	}
+}
+
 // This function is invoked when someone clicks the top banner
 // or hits ctrl+enter. It runs the parser, performs intermediate
 // operations, and loads the code on the machine simulator.
 function compileAndTest() {
 	var t_start = performance.now();
-	runner = null;
+	setRunner(null);
 	
 	try {
 		// Make sure the parser is running.
@@ -82,13 +91,13 @@ function compileAndTest() {
 // Runs one test, then schedules the running of future tests.
 function nextTest(tests) {
 	
-	function runTestSide(fcall){
-		var runner = MachineRunner(allfunc, fcall, {});
-		var outLhs = runner.run();
+	function runTestSide(fcall, t){
+		var rr = MachineRunner(allfunc, fcall, {});
+		var outLhs = rr.run();
 		if(outLhs.state == MACHINE_CONSTANTS.EXEC_HALTED) {
 			return outLhs.retval;
 		} else {
-			error("Function " + runner.fcall.toString() + " incomplete after " + numberWithCommas(outLhs.steps) + " steps, too many iterations.", runner);
+			error("Function " + rr.fcall.toString() + " incomplete after " + numberWithCommas(outLhs.steps) + " steps, too many iterations.", t.lineno);
 			return null;
 		}
 	}
@@ -102,13 +111,13 @@ function nextTest(tests) {
 		// Run the next test
 		var t = tests.next();
 
-		var lhs = runTestSide(t.lhs.fcall);
+		var lhs = runTestSide(t.lhs.fcall, t);
 		if(!lhs)
 			return;
 
 		var rhs;
 		if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
-			rhs = runTestSide(t.rhs.fcall);
+			rhs = runTestSide(t.rhs.fcall, t);
 			if(!rhs)
 				return;
 		} else if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_VALUES) {
