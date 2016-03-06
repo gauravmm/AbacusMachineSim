@@ -10,9 +10,11 @@ var LOGGING = true;
 var TEST_DELAY = 10;
 
 // Global variables
-var isRunning = false;
 var editor;
-var allfunc;
+var allfunc; // All the compiled functions.
+var isCompiled = false; // Is there any compiled code ready to be run?
+var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
+
 // Compiler tests to run
 var testTimer;
 
@@ -42,8 +44,7 @@ function start(){
 // operations, and loads the code on the machine simulator.
 function compileAndTest() {
 	var t_start = performance.now();
-	var wasRunning = isRunning;
-	isRunning = false;
+	runner = null;
 	
 	try {
 		// Make sure the parser is running.
@@ -76,9 +77,9 @@ function compileAndTest() {
 			throw err;
 		}
 	}
-
 }
 
+// Runs one test, then schedules the running of future tests.
 function nextTest(tests) {
 	
 	function runTestSide(fcall){
@@ -98,7 +99,7 @@ function nextTest(tests) {
 	}
 
 	try {
-		// Run each test
+		// Run the next test
 		var t = tests.next();
 
 		var lhs = runTestSide(t.lhs.fcall);
@@ -141,6 +142,7 @@ function nextTest(tests) {
 //
 
 function onCompile(success) {
+	isCompiled = success;
 	if(success) {
 		$('defaultView').style.display = "none";
 		$('runningView').style.display = "flex";
