@@ -334,7 +334,7 @@ function FunctionCall(_fn, _in, _out) {
 		if(_fn != other.name)
 			return false;
 		if(_in.length != other.args.length ||  (_out > 0 && _out != other.rets.length))
-			throw MachineException("Function \"" + _fn + "\" with correct name but incorrect signature found");
+			throw new MachineException("Function \"" + _fn + "\" with correct name but incorrect signature found");
 		return true;
 	}
 
@@ -550,6 +550,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
 	var recursionDetector = RepetitionDetector();
 	var retval = null;
+	var startingLineNo = -1;
 
 	function mrun$except(text, location) {
 		throw new MachineException(text, location);
@@ -582,6 +583,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 	// Initializer, simply invokes the function.
 	function mrun$init(allfn, fcall) {
 		mrun$invokefunc(fcall);
+		startingLineNo = mrun$getlineno();
 	}
 
 	function mrun$next() {
@@ -631,6 +633,14 @@ function MachineRunner(_allfn, _fcall, _options) {
 		mrun$except("Setting values is not supported.", s.lineno);
 	}
 
+	function mrun$getlineno() {
+		if(stack.length > 0) {
+			return stack[stack.length - 1].getState().lineno;
+		} else {
+			return startingLineNo;
+		}
+	}
+
 	// Run the machine until one of the termination conditions are met.
 	// In the worst case, it stops at DEFAULT_MAX_ITER.
 	function mrun$runner(options) {
@@ -643,7 +653,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 
 		// Make sure that this works.
 		if(state == MACHINE_CONSTANTS.EXEC_HALTED)
-			return;
+			return { state: state, steps: step };
 
 		// Defaults:
 		if(!options)
@@ -687,9 +697,12 @@ function MachineRunner(_allfn, _fcall, _options) {
 				default:
 					// Do nothing, just keep going.
 			}
+
+			if(toBreak)
+				break;
 		}
 
-		var rv = { state: state, steps: step };
+		var rv = { state: state, steps: step, lineno: mrun$getlineno() };
 
 		// If the machine has halted, stop.
 		if(state == MACHINE_CONSTANTS.EXEC_HALTED) {
@@ -708,7 +721,8 @@ function MachineRunner(_allfn, _fcall, _options) {
 		fcall:    _fcall,
 		run:      mrun$runner,
 		getState: mrun$state,
-		set:      mrun$set
+		set:      mrun$set,
+		lineno: mrun$getlineno
 	};
 }
 

@@ -11,8 +11,7 @@ var TEST_DELAY = 10;
 
 // Global variables
 var editor;
-var allfunc; // All the compiled functions.
-var isCompiled = false; // Is there any compiled code ready to be run?
+var compiled = null; // Is there any compiled code ready to be run? If there is, then this contains the compiled functions. If not, its null
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
 
 // Compiler tests to run
@@ -43,6 +42,8 @@ function setRunner(r) {
 	runner = r;
 	if(r) {
 		$('runningView').className = "codeRunning";
+		status("Loaded function " + runner.fcall.toString() + ", use step-through commands to continue")
+		jumpTo(runner.lineno());
 	} else {
 		$('runningView').className = "codeNotRunning";
 	}
@@ -67,20 +68,20 @@ function compileAndTest() {
 		var compiled = parse.map(Compiler.compile);
 		var tests = TestEngine(compiled);
 		// All the functions
-		allfunc = compiled.map(function(v) { return v.code; });
+		var allfunc = compiled.map(function(v) { return v.code; });
 
 		// End timer.
 		// var t_end = performance.now();
-		onCompile(true);
+		onCompile(allfunc);
 
 		clearTimeout(testTimer);
 		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 	} catch (err) {
-		onCompile(false);
+		onCompile(null);
 		console.log("wtf?");
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
 			error(err.message, err.location);
-			redrawState();
+			clearState();
 			return;
 		} else {
 			throw err;
@@ -92,7 +93,7 @@ function compileAndTest() {
 function nextTest(tests) {
 	
 	function runTestSide(fcall, t){
-		var rr = MachineRunner(allfunc, fcall, {});
+		var rr = MachineRunner(compiled, fcall, {});
 		var outLhs = rr.run();
 		if(outLhs.state == MACHINE_CONSTANTS.EXEC_HALTED) {
 			return outLhs.retval;
@@ -138,7 +139,7 @@ function nextTest(tests) {
 	} catch (err) {
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
 			error(err.message, err.location);
-			redrawState();
+			clearState();
 			return;
 		} else {
 			throw err;
@@ -150,9 +151,9 @@ function nextTest(tests) {
 // Enabling/Disabling bits of UI:
 //
 
-function onCompile(success) {
-	isCompiled = success;
-	if(success) {
+function onCompile(cm) {
+	compiled = cm;
+	if(cm) {
 		$('defaultView').style.display = "none";
 		$('runningView').style.display = "flex";
 	} else {
@@ -177,19 +178,81 @@ function run() {
 }
 
 // Toolbar buttons:
+function loadAndPause() {
+	if(!loadFunction($('funcCall').value))
+		return;
+	redrawState();
+}
+function loadAndRun() {
+	if(!loadFunction($('funcCall').value))
+		return;
+	runnerStep(MACHINE_CONSTANTS.DBG_RUN_TO_END);
+}
 function runToEnd() {
-
+	runnerStep(MACHINE_CONSTANTS.DBG_RUN_TO_END);
 }
 function stepInto() {
-
+	runnerStep(MACHINE_CONSTANTS.DBG_STEP_INTO);
 }
 function stepOut() {
-
+	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OUT);
 }
 function stepOver() {
-
+	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OVER);
 }
 
+// 
+// Compiler/Runner interaction
+//
+function loadFunction(funstr) {
+	if(!compiled) {
+		error("Compile your code before running a function!");
+		return false;
+	}
+	
+	try {
+		// Parse funstr
+		var regex = /\s*([A-Za-z_][A-Za-z_0-9]*)\(([0-9]+(\s?,\s?([0-9]+))*)\)\s*/;
+		var match = funstr.match(regex);
+		if(!match) {
+			error("Parser error: your function call is not well-formed.");
+			return false;
+		}
+		var fn = match[1];
+		var args = match[2].split(",").map(function(v) { return parseInt(v); });
+
+		// Now we have the function name and the arguments, we construct a FunctionCall object:
+		var fcall = FunctionCall(fn, args, 0);
+		setRunner(MachineRunner(compiled, fcall));
+	} catch (err) {
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
+			error(err.message, err.location);
+			clearState();
+			return;
+		} else {
+			throw err;
+		}
+		return false;
+	}
+	return true;
+}
+function runnerStep(mode) {
+	if(!runner) {
+		error("You have to load a function before you can step through it.");
+		return;
+	}
+
+	var rv = runner.run({ stepmode: mode });
+	if(rv.state == MACHINE_CONSTANTS.EXEC_HALTED){
+		success(runner.fcall.toString() + " returned with (" + rv.retval.join(", ") + ")");
+		clearState();
+		return;
+	} else if(rv.state == MACHINE_CONSTANTS.EXEC_RUNNING){
+		status(runner.fcall.toString() + " run for " + rv.steps + " steps.");
+	}
+	redrawState();
+	jumpTo(rv.lineno);
+}
 
 //
 // Keyboard Interaction
@@ -230,6 +293,11 @@ function error(str, jump) {
 	}
 
 	jumpTo(jump);
+}
+
+function status(str) {
+	$('runtimeOut').innerText = str;
+	$('runtimeOut').className = "runtimeReady";
 }
 
 function jumpTo(jump) {
@@ -275,12 +343,13 @@ function clearState() {
 	currStackTraceNode = -1;
 	emptyNode($('registers'));
 	emptyNode($('stack'));
+	setRunner(null);
 }
 
 function redrawState() {
 	// If nothing is running, wait to redraw.
 	// switchView has already covered up the problem.
-	if(!isRunning) {
+	if(!compiled || !runner) {
 		return;
 	}
 

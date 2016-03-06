@@ -161,11 +161,13 @@ a:hover {
 .runtimeReady {
 	border: solid thin #333;
 	border-left: 5px solid black;
+	background: #FFF;
 }
 
 .runtimeGood {
 	border: solid thin #333;
 	border-left: 5px solid #05B904;
+	background: #FFF;
 }
 
 .runtimeError {
@@ -313,10 +315,10 @@ a:hover {
 	margin: 0 -5px 0;
 	padding: 12px 7px 0;
 	border-bottom: thin solid gray;
-	background: #F7F7F7;
+	background: #EEE;
 }
 .codeRunning .showWhenRunning {
-	display: block;
+	display: flex;
 }
 .codeNotRunning .showWhenRunning {
 	display: none;
@@ -373,8 +375,8 @@ a:hover {
 	flex-direction: row;
 	padding: 2px 4px;
 }
-#registers>div:nth-child(2n+1) {
-	background: #F7F7F7;
+#registers>div:nth-child(2n) {
+	background: #EEE;
 }
 
 #registers .registerName {

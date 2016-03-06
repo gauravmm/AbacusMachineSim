@@ -39,14 +39,13 @@
           A <span class="codeSnippet">where</span> block at the end of a function contains tests like <span class="codeSnippet">name(1, 2, 3) is 2, 3</span>. The left-hand-side must be a function call and the right hand side can be a list of integers or another function call. </p>
           <p>For additional documentation, refer to the <a href="https://github.com/gauravmm/AbacusMachineSim/blob/develop/README.md">README</a>.</p>
         </div>
-      
       </div>
       <div id="runningView" style="display: none;">
         <div id="toolbar">
           <div class="toolbarRow toolbarSmallGap">
             <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
-            <span class="btn" tooltip="Load and Pause">&#9654;&#9646;</span>
-            <span class="btn" tooltip="Load and Run">&#9654;</span>
+            <span class="btn" onclick="loadAndPause()" tooltip="Load and Pause">&#9654;&#9646;</span>
+            <span class="btn" onclick="loadAndRun()" tooltip="Load and Run">&#9654;</span>
           </div>
           <div class="toolbarRow showWhenRunning">
             <span class="btn" onclick="runToEnd()" tooltip="Run to End (Ctrl+E)">&#x21e5;</span>
@@ -70,7 +69,9 @@
  * multiline
  * comment
  */
-
+function name([1], [2], [3]) -> [1] {
+  cpy([2]) -> [1];
+}
 function cpy([1]) -> [2] {
   cpy1([1]) -> [2];
 }
