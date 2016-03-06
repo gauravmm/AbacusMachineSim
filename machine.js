@@ -370,7 +370,7 @@ function Machine(compiled, args, options) {
 	}
 
 	var code = compiled;
-	var opts = options;
+	var opts = options?options:{};
 	var registers = [];
 	var curr = 0;
 	var state = MACHINE_CONSTANTS.EXEC_RUNNING;
@@ -438,7 +438,7 @@ function Machine(compiled, args, options) {
 			// Since the only branching jump is with register subtractions, we reset
 			// loopDetector there.		
 			if(loopDetector.push(curr))
-				abacm$except("Infinite loop detected in code, see lines " + ", ".join(loopDetector.getLoop(curr)) + ".", cL.lineno);
+				abacm$except("Infinite loop detected in code, see lines " + loopDetector.getLoop(curr).join(", ") + ".", cL.lineno);
 			
 			// We look at the current state and figure out what to do next based on this.
 			if (cL.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
@@ -689,7 +689,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 					break;
 
 				case MACHINE_CONSTANTS.DBG_STEP_OUT:
-					toBreak = stack.length < startStackLength;
+					toBreak = (stack.length < startStackLength);
 					break;
 
 				case MACHINE_CONSTANTS.DBG_RUN_TO_END:
@@ -822,16 +822,17 @@ function TestEngine(__compiledOutput, _listener) {
 
 	// Return true if we should continue, false otherwise.
 	function tests$status(succ) {
-		cp++;
+		if(succ)
+			cp++;
 		passedAllTests = succ && passedAllTests;
 		if(listener) {
 			listener(prevTest, succ, lastInFunction);
 		}
-		if(!passedAllTests && lastInFunction) {
-			return false;
-		} else {
-			return true;
-		}
+		return true;
+	}
+
+	function tests$passed() {
+		return cp;
 	}
 
 	tests$init(__compiledOutput);
@@ -839,6 +840,7 @@ function TestEngine(__compiledOutput, _listener) {
 		hasTest: tests$hasTest,
 		next: tests$nextTest,
 		status: tests$status,
-		count: ct
+		count: ct,
+		passed: tests$passed
 	}
 }

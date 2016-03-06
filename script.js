@@ -13,7 +13,7 @@ var TEST_DELAY = 10;
 var editor;
 var compiled = null; // Is there any compiled code ready to be run? If there is, then this contains the compiled functions. If not, its null
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
-
+var linecorr = null; // Line number correspondences used to set breakpoints.
 // Compiler tests to run
 var testTimer;
 
@@ -31,8 +31,10 @@ function start(){
     	lineNumbers: true,
     	mode: "abacusmachine",
     	theme: "default",
-		lineWrapping: true
+		lineWrapping: true,
+		gutters: ["CodeMirror-linenumbers", "lint"]
   	});
+  	editor.on("gutterClick", handleGutterClick);
 
   	$('runtimeOut').onclick = compileAndTest;
   	document.onkeyup = handleKeyboardShortcuts;
@@ -42,7 +44,7 @@ function setRunner(r) {
 	runner = r;
 	if(r) {
 		$('runningView').className = "codeRunning";
-		status("Loaded function " + runner.fcall.toString() + ", use step-through commands to continue")
+		status("Loaded function " + runner.fcall.toString() + ", use step-through commands to continue.");
 		jumpTo(runner.lineno());
 	} else {
 		$('runningView').className = "codeNotRunning";
@@ -78,12 +80,12 @@ function compileAndTest() {
 		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 	} catch (err) {
 		onCompile(null);
-		console.log("wtf?");
-		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException || (err.name && err.name == "SyntaxError")) {
 			error(err.message, err.location);
 			clearState();
 			return;
 		} else {
+			console.log(err);
 			throw err;
 		}
 	}
@@ -98,51 +100,65 @@ function nextTest(tests) {
 		if(outLhs.state == MACHINE_CONSTANTS.EXEC_HALTED) {
 			return outLhs.retval;
 		} else {
-			error("Function " + rr.fcall.toString() + " incomplete after " + numberWithCommas(outLhs.steps) + " steps, too many iterations.", t.lineno);
-			return null;
+			return "Function " + rr.fcall.toString() + " incomplete after " + numberWithCommas(outLhs.steps) + " steps, too many iterations.";
 		}
 	}
 
 	if(!tests.hasTest()) {
-		success("Build successful: passed all " + tests.count + " tests.");
+		var cp = tests.passed();
+		var ct = tests.count;
+		if(cp == ct) {
+			success("Build successful: passed all " + cp + " tests.");
+		} else {
+			error("Build failed: passed " + cp + " out of " + ct + " tests.");
+		}
 		return;
 	}
+
+	var fatalError = false;
 
 	try {
 		// Run the next test
 		var t = tests.next();
 
 		var lhs = runTestSide(t.lhs.fcall, t);
-		if(!lhs)
-			return;
+		if(Array.isArray(lhs)) {
+			
+			var rhs;
+			if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
+				rhs = runTestSide(t.rhs.fcall, t);
+				if(!Array.isArray(lhs)) {
+					tests.status(false);
+					setTestGutter(t.lineno - 1, false, lhs);
+					return;
+				}
+			} else if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_VALUES) {
+				rhs = t.rhs.values;
+			}
 
-		var rhs;
-		if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
-			rhs = runTestSide(t.rhs.fcall, t);
-			if(!rhs)
-				return;
-		} else if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_VALUES) {
-			rhs = t.rhs.values;
-		}
-
-		
-		// Compare LHS and RHS:
-		var correct = (lhs.length == rhs.length) && lhs.every(function(e, i) { return e === rhs[i]; });
-		tests.status(correct);
-		if (!correct) {
-			error("Test failed: (" + lhs.join(", ") + ") is not (" + rhs.join(", ") + ")", t.lineno);
+			
+			// Compare LHS and RHS:
+			var correct = (lhs.length == rhs.length) && lhs.every(function(e, i) { return e === rhs[i]; });
+			tests.status(correct);
+			setTestGutter(t.lineno - 1, correct, "(" + lhs.join(", ") + ")" + (correct?" is ":" is not ") + "(" + rhs.join(", ") + ")");
+		} else {
+			tests.status(false);
+			setTestGutter(t.lineno - 1, false, lhs);
 			return;
 		}
 		
 		// Set up the next test:
-		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 	} catch (err) {
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
-			error(err.message, err.location);
+			error("Fatal error while running tests: " + err.message, err.location);
 			clearState();
-			return;
+			fatalError = true;
 		} else {
 			throw err;
+		}
+	} finally {
+		if(!fatalError) {
+			testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 		}
 	}
 }
@@ -160,6 +176,7 @@ function onCompile(cm) {
 		$('defaultView').style.display = "flex";
 		$('runningView').style.display = "none";
 	}
+	resetGutter();
 	clearState();
 }
 
@@ -199,6 +216,10 @@ function stepOut() {
 }
 function stepOver() {
 	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OVER);
+}
+function handleGutterClick(cm, n) {
+	var info = cm.lineInfo(n);
+	setBreakpoint(n, true);
 }
 
 // 
@@ -328,6 +349,28 @@ function success(str) {
 //
 // UI Drawing Functions
 //
+
+function resetGutter() {
+	editor.clearGutter("lint");
+}
+function setTestGutter(line, passed, tooltip) {
+	var marker = document.createElement("div");
+	marker.innerHTML = "&nbsp;";
+	marker.setAttribute("tt", tooltip);
+	marker.className = "testResult " + (passed?"testSuccess":"testFailed");
+	
+	editor.setGutterMarker(line, "lint", marker);
+}
+
+function setBreakpoint(line, set) {
+	var marker = null;
+	if(set) {
+		marker = document.createElement("div");
+		marker.className = "lintBreakpoint";
+		marker.innerHTML = "&#x25CF;";
+	}
+	editor.setGutterMarker(line, "lint", marker);
+}
 
 function emptyNode(tgt) {
 	while(tgt.hasChildNodes())
