@@ -68,43 +68,22 @@ function cpy([1]) -> [2] {
 
 function cpy1([1]) -> [1] {
   // Do nothing
-}
-
-function rem([1],[2]) -> [rv] {
-  :start
-  cpy([1]) -> [rv];
-  [7]+, next;
-  [7]+;     // Proceed to next instruction by default
-  [7]-;     // Proceed to next instruction by default
-  [7]-, :start, :mainloop; // Specify the jumps otherwise
-  goto :start; // This instruction is never reached.
-  
-  :mainloop
-  cpy([2]) -> [5];
-  [3]-, next, next; // Both branches go to the next instruction
-  [5]-, :mainloop, next; // If not empty, continue. If empty, go to 15.
-  [6]-, next, :mainloop; // If not empty, go to :mainloop
 } where {
-  rem(5,7) is rem(12,7);
-  rem(10,6) is 4;
-  rem(7,7) is rem(3,3);
-}
-
-function recursionTest([1]) -> [2], [3] {
-  cpy(80) -> [2];
-  rem([2], 3) -> [3];
-} where {
-  recursionTest(3) is 80, 2;
+  cpy1(7) is 7;
+  cpy1(8) is cpy1(6);
+  cpy1(6) is cpy1(6);
 }
 
 function a([1]) -> [1] {
   [1]+;
   b([1]) -> [1];
-  recursionTest([1]) -> [2], [3];
 }
 
 function b([1]) -> [1] {
   [1]+;
+} where {
+  b(7) is 8;
+  b(6) is 7;
 }
 </textarea></div>
     </div>

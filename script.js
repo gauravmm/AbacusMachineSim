@@ -7,17 +7,21 @@
 
 // Configuration
 var LOGGING = true;
-
+var TEST_DELAY = 10;
 
 // Global variables
 var isRunning = false;
 var editor;
 var allfunc;
-var tests;
-var runner;
+// Compiler tests to run
+var testTimer;
 
 function $(s){
 	return document.getElementById(s);
+}
+// From: http://stackoverflow.com/a/2901298
+function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function start(){
@@ -40,56 +44,117 @@ function compileAndTest() {
 	var t_start = performance.now();
 	var wasRunning = isRunning;
 	isRunning = false;
-	var parse;
-	try {
-		parse = parser.parse(editor.getValue());
-	} catch (err) {
-		error(err.message, err.location);
-		return;
-	}
-
-	if(LOGGING)
-		console.log("Parsing complete: " + Math.round(performance.now() - t_start) + " ms");
 	
-	if (parse.length > 0) {
-		try {
-			// compiled is a list of {code, tests} objects,
-			// where code is the "compiled" version of each function
-			// and tests is the set of tests associated with that function.
-			var compiled = parse.map(Compiler.compile);
-			tests = TestEngine(compiled);
-			// All the functions
-			allfunc = compiled.map(function(v) { return v.code; });
+	try {
+		// Make sure the parser is running.
+		var parse = parser.parse(editor.getValue());
+		if (parse.length == 0)
+			throw new MachineException("No functions defined.");
 
-			// TODO: Loop through all the tests and see if something fails.
-			var t = tests.next();
-			runner = MachineRunner(allfunc, t.lhs.fcall, {});
+		// compiled is a list of {code, tests} objects,
+		// where code is the "compiled" version of each function
+		// and tests is the set of tests associated with that function.
+		var compiled = parse.map(Compiler.compile);
+		var tests = TestEngine(compiled);
+		// All the functions
+		allfunc = compiled.map(function(v) { return v.code; });
 
-		} catch (err) {
-			console.log(err);
-			if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
-				error(err.message, err.location);
-				redrawState();
-				return;
-			} else {
-				throw err;
-			}
+		// End timer.
+		// var t_end = performance.now();
+		onCompile(true);
+
+		clearTimeout(testTimer);
+		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
+	} catch (err) {
+		onCompile(false);
+		console.log("wtf?");
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
+			error(err.message, err.location);
+			redrawState();
+			return;
+		} else {
+			throw err;
 		}
-	} else {
-		error("No functions defined.");
+	}
+
+}
+
+function nextTest(tests) {
+	
+	function runTestSide(fcall){
+		var runner = MachineRunner(allfunc, fcall, {});
+		var outLhs = runner.run();
+		if(outLhs.state == MACHINE_CONSTANTS.EXEC_HALTED) {
+			return outLhs.retval;
+		} else {
+			error("Function " + runner.fcall.toString() + " incomplete after " + numberWithCommas(outLhs.steps) + " steps, too many iterations.", runner);
+			return null;
+		}
+	}
+
+	if(!tests.hasTest()) {
+		success("Build successful: passed all " + tests.count + " tests.");
 		return;
 	}
 
-	var t_end = performance.now();
-	success("Building and testing complete in " + Math.round(t_end - t_start) + " ms");
-	if(LOGGING)
-		console.log("Execution complete: " + Math.round(t_end - t_start) + " ms")
+	try {
+		// Run each test
+		var t = tests.next();
+
+		var lhs = runTestSide(t.lhs.fcall);
+		if(!lhs)
+			return;
+
+		var rhs;
+		if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_CALL) {
+			rhs = runTestSide(t.rhs.fcall);
+			if(!rhs)
+				return;
+		} else if(t.rhs.type == MACHINE_CONSTANTS.CODE_TYPE_VALUES) {
+			rhs = t.rhs.values;
+		}
+
+		
+		// Compare LHS and RHS:
+		var correct = (lhs.length == rhs.length) && lhs.every(function(e, i) { return e === rhs[i]; });
+		tests.status(correct);
+		if (!correct) {
+			error("Test failed: (" + lhs.join(", ") + ") is not (" + rhs.join(", ") + ")", t.lineno);
+			return;
+		}
+		
+		// Set up the next test:
+		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
+	} catch (err) {
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
+			error(err.message, err.location);
+			redrawState();
+			return;
+		} else {
+			throw err;
+		}
+	}
 }
 
-function step() {
-	runner.step();
-	console.log(runner.getState());
+//
+// Enabling/Disabling bits of UI:
+//
+
+function onCompile(success) {
+	if(success) {
+		$('defaultView').style.display = "none";
+		$('runningView').style.display = "flex";
+	} else {
+		$('defaultView').style.display = "flex";
+		$('runningView').style.display = "none";
+	}
+	clearState();
 }
+
+function onCodeLoaded() {
+	redrawState();
+}
+
 
 //
 // Responding to UI events.
@@ -190,21 +255,18 @@ function emptyNode(tgt) {
 		tgt.removeChild(tgt.childNodes[0]);
 }
 
-function switchView() {
-	if(isRunning) {
-		$('defaultView').style.display = "none";
-		$('runningView').style.display = "flex";
-	} else {
-		$('defaultView').style.display = "flex";
-		$('runningView').style.display = "none";
-	}
-}
-
 
 var stackTraceNodes = [];
 var currStackTraceNode = -1;
+
+function clearState() {
+	stackTraceNodes = [];
+	currStackTraceNode = -1;
+	emptyNode($('registers'));
+	emptyNode($('stack'));
+}
+
 function redrawState() {
-	switchView();
 	// If nothing is running, wait to redraw.
 	// switchView has already covered up the problem.
 	if(!isRunning) {

@@ -10,6 +10,8 @@
 function ENCODE_INTEGER(v) { return -v-1; } 
 function DECODE_INTEGER(v) { return -v-1; }
 
+var DEFAULT_MAX_ITER = 10000;
+
 var MACHINE_CONSTANTS = (function () {
 	var i = 0;
 	return {
@@ -23,7 +25,12 @@ var MACHINE_CONSTANTS = (function () {
 		EXEC_HALTED        : i++,
 		EXEC_WAITING       : i++,
 
-		TEST_EQUALITY      : i++
+		TEST_EQUALITY      : i++,
+
+		DBG_STEP_OVER      : i++,
+		DBG_STEP_INTO      : i++,
+		DBG_STEP_OUT       : i++,
+		DBG_RUN_TO_END     : i++
 	};
 })();
 
@@ -249,7 +256,8 @@ var Compiler = (function() {
 			tests.push({
 				lhs: lhs,
 				rhs: rhs,
-				mode: MACHINE_CONSTANTS.TEST_EQUALITY
+				mode: MACHINE_CONSTANTS.TEST_EQUALITY,
+				lineno: fn.tests[i].lineno
 			});
 		}
 
@@ -330,11 +338,16 @@ function FunctionCall(_fn, _in, _out) {
 		return true;
 	}
 
+	function fncall$tostr() {
+		return _fn + "(" + _in.join(", ") + ")";
+	}
+
 	return {
 		fn: _fn, 
 		in: _in,
 		out: _out,
-		matches: fncall$match
+		matches: fncall$match,
+		toString: fncall$tostr
 	};
 }
 
@@ -561,6 +574,9 @@ function MachineRunner(_allfn, _fcall, _options) {
 	function mrun$returnfunc() {
 		recursionDetector.pop();
 		stack.pop();
+		if(stack.length == 0) {
+			state = MACHINE_CONSTANTS.EXEC_HALTED;
+		}
 	}
 
 	// Initializer, simply invokes the function.
@@ -615,9 +631,82 @@ function MachineRunner(_allfn, _fcall, _options) {
 		mrun$except("Setting values is not supported.", s.lineno);
 	}
 
+	// Run the machine until one of the termination conditions are met.
+	// In the worst case, it stops at DEFAULT_MAX_ITER.
+	function mrun$runner(options) {
+		// options, contains:
+		//   lines:     [not done yet] Breakpoints corresponding to line numbers,
+		//   registers: [not done yet] breakpoints corresponding to change in a particular register
+		//   stepmode:  MACHINE_CONSTANTS.{DBG_STEP_OVER, DBG_STEP_INTO, DBG_STEP_OUT, DBG_RUN_TO_END}
+		//              Defaults to DBG_RUN_TO_END.
+		//   max_iter:  The maximum number of iterations to run before pausing. Defaults to DEFAULT_MAX_ITER.
+
+		// Make sure that this works.
+		if(state == MACHINE_CONSTANTS.EXEC_HALTED)
+			return;
+
+		// Defaults:
+		if(!options)
+			options = {};
+		if(!options.max_iter)
+			options.max_iter = DEFAULT_MAX_ITER;
+		if(!options.stepmode)
+			options.stepmode = MACHINE_CONSTANTS.DBG_RUN_TO_END;
+
+		// Starting stack length
+		var startStackLength = stack.length; 
+		// Ending iteration
+		var endC = step + options.max_iter;
+
+		while(step < endC) {
+			var toBreak = false;
+			var st = mrun$next();
+
+			// If the machine has halted, stop.
+			if(state == MACHINE_CONSTANTS.EXEC_HALTED)
+				break;
+
+			switch(options.stepmode) {
+				case MACHINE_CONSTANTS.DBG_STEP_INTO:
+					// Always break.
+					toBreak = true;
+					break;
+
+				case MACHINE_CONSTANTS.DBG_STEP_OVER:
+					// If there is no stack length change, then we can end right here.
+					// Otherwise, we continue until the stack returns to this length.
+					toBreak = (stack.length == startStackLength);
+					break;
+
+				case MACHINE_CONSTANTS.DBG_STEP_OUT:
+					if(stack.length < startStackLength)
+						toBreak = true;
+					break;
+
+				case MACHINE_CONSTANTS.DBG_RUN_TO_END:
+				default:
+					// Do nothing, just keep going.
+			}
+		}
+
+		var rv = { state: state, steps: step };
+
+		// If the machine has halted, stop.
+		if(state == MACHINE_CONSTANTS.EXEC_HALTED) {
+			if(!retval) {
+				mrun$except("Machine HALTED without a return value.", s.lineno);
+			}
+
+			rv.retval = retval;
+		}
+
+		return rv;
+	}
+
 	mrun$init(_allfn, _fcall);
 	return {
-		step:     mrun$next,
+		fcall:    _fcall,
+		run:      mrun$runner,
 		getState: mrun$state,
 		set:      mrun$set
 	};
@@ -687,6 +776,9 @@ function TestEngine(__compiledOutput, _listener) {
 		});
 
 		tests$removeTrailingEmpties();
+
+		// Count up the tests
+		ct = tests.reduce(function(f,v) { return v.length + f; }, 0);
 	}
 
 	function tests$hasTest() {
@@ -701,7 +793,6 @@ function TestEngine(__compiledOutput, _listener) {
 
 	function tests$nextTest() {
 		var tt = tests[tests.length - 1];
-		console.log(tt);
 		prevTest = tt.pop();
 
 		if(tt.length == 0) {
@@ -718,6 +809,7 @@ function TestEngine(__compiledOutput, _listener) {
 
 	// Return true if we should continue, false otherwise.
 	function tests$status(succ) {
+		cp++;
 		passedAllTests = succ && passedAllTests;
 		if(listener) {
 			listener(prevTest, succ, lastInFunction);
@@ -733,6 +825,7 @@ function TestEngine(__compiledOutput, _listener) {
 	return {
 		hasTest: tests$hasTest,
 		next: tests$nextTest,
-		status: tests$status
+		status: tests$status,
+		count: ct
 	}
 }
