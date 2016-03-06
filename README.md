@@ -19,7 +19,7 @@ Control flow proceeds sequentially forwards unless changed by a `goto` or branch
 	:this123 /* code continues on this line */
 ```
 
-Within register commands, either `next` or `~` can be used to refer to the next line instead of an anchor. You cannot place an anchor on the same line as a `goto`.
+Within register commands, `next` can be used to refer to the next line instead of an anchor. You cannot place an anchor on the same line as a `goto`.
 
 Runtime detection of infinite loops has been implemented, so some types of infinite loops will stop the engine automatically.
 
@@ -32,10 +32,10 @@ Two operations can be performed on registers, addition and subtraction. They are
   
   [7]+; // Increment register 1 and continue.
   [7]-; // Decrement register 1 and continue.
-  [7]+, next;      // Increment and go to the next line.
-  [7]-, :start, ~; // Decrement, and if the register is
-                   //  still positive go to :start. If
-                   //  zero, go to the next line.
+  [7]+, next;         // Increment and go to the next line.
+  [7]-, :start, next; // Decrement, and if the register is
+                      //  still positive go to :start. If
+                      //  zero, go to the next line.
 ```
 
 
