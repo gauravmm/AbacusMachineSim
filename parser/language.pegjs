@@ -87,12 +87,18 @@ FunctionCallHead
   }
 
 RegisterChange
-  = reg:Register "+" (_ "," _ marker:Marker)? {
-    return { type:"rchange", register:reg, operation:"+", next:(typeof marker !== 'undefined')?marker:relativePositionMarker("next") };
-  }
-  / reg:Register "-" (_ "," _ ifpos:Marker _ "," _ ifzero:Marker)? {
-    return { type:"rchange", register:reg, operation:"-", npos:(typeof ifpos !== 'undefined')?ifpos:relativePositionMarker("next"), nzero:(typeof ifzero !== 'undefined')?ifzero:relativePositionMarker("next") };
-  }
+  = reg:Register "+" _ "," _ marker:Marker {
+      return { type:"rchange", register:reg, operation:"+", next:(typeof marker !== 'undefined')?marker:relativePositionMarker("next") };
+    } 
+  / reg:Register "+" {
+      return { type:"rchange", register:reg, operation:"+", next:relativePositionMarker("next") };
+    }
+  / reg:Register "-" _ "," _ ifpos:Marker _ "," _ ifzero:Marker {
+      return { type:"rchange", register:reg, operation:"-", npos:ifpos, nzero:ifzero };
+    }
+  / reg:Register "-" {
+      return { type:"rchange", register:reg, operation:"-", npos:relativePositionMarker("next"), nzero:relativePositionMarker("next") };
+    }
   
 //
 // Basic Identifier Types and Groups
