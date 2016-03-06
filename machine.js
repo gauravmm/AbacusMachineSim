@@ -685,12 +685,11 @@ function MachineRunner(_allfn, _fcall, _options) {
 				case MACHINE_CONSTANTS.DBG_STEP_OVER:
 					// If there is no stack length change, then we can end right here.
 					// Otherwise, we continue until the stack returns to this length.
-					toBreak = (stack.length == startStackLength);
+					toBreak = (stack.length <= startStackLength);
 					break;
 
 				case MACHINE_CONSTANTS.DBG_STEP_OUT:
-					if(stack.length < startStackLength)
-						toBreak = true;
+					toBreak = stack.length < startStackLength;
 					break;
 
 				case MACHINE_CONSTANTS.DBG_RUN_TO_END:
