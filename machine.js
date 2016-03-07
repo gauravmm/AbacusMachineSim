@@ -522,7 +522,18 @@ function Machine(compiled, args, options) {
 	}
 
 	function abacm$set(adj) {
-		abacm$except("Setting values is not supported yet.", cL.lineno);
+		if(!adj)
+			return;
+		adj.forEach(function (v){
+			var z = code.regs.indexOf(v.reg);
+			if (z < 0) {
+				abacm$except("Trying to set value of unknown register [" + v.val + "].");
+			}
+			if(v.val < 0) {
+				abacm$except("Trying to set register [" + v.val + "] to illegal value " + v.val + ".");	
+			}
+			registers[z] = v.val;
+		});
 	}
 
 	function abacm$state() {
@@ -640,12 +651,12 @@ function MachineRunner(_allfn, _fcall, _options) {
 		if(typeof i != "undefined") {
 			return stack[i].getState();
 		}
-		return stack.map(function(st) { return st.getState(); });
+		return stack.map(st => st.getState());
 	}
 
-	// Set a value in one of the machines.
-	function mrun$set() {
-		mrun$except("Setting values is not supported.", s.lineno);
+	// Set a value in the innermost scope.
+	function mrun$set(v) {
+		stack[stack.length - 1].set(v);
 	}
 
 	function mrun$getlineno() {

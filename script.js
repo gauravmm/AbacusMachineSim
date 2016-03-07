@@ -189,11 +189,6 @@ function onCompile(cm) {
 // Responding to UI events.
 //
 
-function run() {
-	compileAndTest();
-	redrawState();
-}
-
 // Toolbar buttons:
 function loadAndPause() {
 	if(!loadFunction($('funcCall').value))
@@ -254,7 +249,7 @@ function checkAndHandleBreakpoint(n) {
 			for(var j = e.exec.length - 1; j >= 0; --j) {
 				if(e.exec[j].type == MACHINE_CONSTANTS.CODE_TYPE_RETURN)
 					continue;
-				
+
 				if(e.exec[j].lineno >= m) {
 					// Oh, goody! The breakpoint is before this line, so it's probably in this function.
 					lineidx = e.exec[j].lineno;
@@ -281,6 +276,23 @@ function handleChange() {
 	}
 	clearTimeout(saveTimer);
 	saveTimer = setTimeout(saveState, SAVE_DELAY);
+}
+
+function handleRegisterChange(regName, v) {
+	if(!runner) {
+		error("Cannot change value of register when code is not running.");
+	}
+
+	try {
+		runner.set([{reg: regName, val: v}]);
+	} catch (err) {
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
+			error(err.message, err.location);
+			return;
+		} else {
+			throw err;
+		}
+	}
 }
 
 function saveState() {
@@ -562,6 +574,11 @@ function changeSelectedStackFrame(i) {
 		number.min = 0;
 		number.value = s.values[i];
 		number.readOnly = !editable;
+		if(editable) {
+			number.onchange = function (e) {
+				handleRegisterChange(regName, number.value);
+			}
+		}
 		li.appendChild(number);
 
 		tgt.appendChild(li);
