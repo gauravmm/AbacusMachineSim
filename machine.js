@@ -717,8 +717,8 @@ function MachineRunner(_allfn, _fcall, _options) {
 				var cs = stack[stack.length - 1].getState();
 				if(options.lines.indexOf(cs.lineno) >= 0 && cs.state == MACHINE_CONSTANTS.EXEC_RUNNING){
 					toBreak = true;
+					stopCause = MACHINE_CONSTANTS.STOP_BREAKPOINT;
 				}
-				stopCause = MACHINE_CONSTANTS.STOP_BREAKPOINT;
 			}
 
 			if(toBreak)
