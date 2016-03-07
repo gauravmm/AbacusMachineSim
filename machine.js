@@ -483,16 +483,17 @@ function Machine(compiled, args, options) {
 					if(opts.exceptionOnNegativeRegister && registers[cL.register] == 0)
 						abacm$except("Decrementing the zero-valued register [" + cL.register + "]", cL.lineno);
 					
-					// Decrement the register if positive
-					if (registers[cL.register] > 0)
-						registers[cL.register]--;
-					
 					// Branch depending on the value of the register
 					if (registers[cL.register] == 0) {
 						curr = cL.next_zero;
 					} else {
 						curr = cL.next_pos;
 					}
+
+					// Decrement the register if positive
+					if (registers[cL.register] > 0)
+						registers[cL.register]--;
+					
 
 					// Reset the infinite loop detection, because we've found a branching instruction:
 					loopDetector.reset();
