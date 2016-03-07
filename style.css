@@ -402,6 +402,7 @@ a:hover {
 }
 .lintBreakpoint {
 	color: #922;
+	text-align: center;
 }
 .testResult {
 	border-radius: 3px;

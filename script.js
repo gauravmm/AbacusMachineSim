@@ -408,6 +408,21 @@ function success(str) {
 //
 
 function resetGutter() {
+	// Before we clear the gutter, we read the current positions of
+	// the breakpoints off. We need to do this because CodeMirror
+	// keeps track of lines for us automatically. It's easier to
+	// use that than to maintain control separately.
+	if(breakpoints.length > 0) {
+		var bp = breakpoints;
+		breakpoints = [];
+		editor.eachLine(function (l) {
+			if(l.gutterMarkers && l.gutterMarkers.lint) {
+				if (l.gutterMarkers.lint.getAttribute("isbreakpoint")) {
+					breakpoints.push(l.lineNo() + 1);
+				}
+			}
+		});	
+	}
 	editor.clearGutter("lint");
 }
 function setTestGutter(line, passed, tooltip) {
@@ -425,8 +440,8 @@ function setBreakpoint(line, set, isFuncEntry) {
 	if(set) {
 		marker = document.createElement("div");
 		marker.className = "lintBreakpoint";
-		marker.innerHTML = isFuncEntry?"&#x25BA":"&#x25CF;";
-		marker.setAttribute("isBreakpoint", true);
+		marker.innerHTML = isFuncEntry?"&#x25BA;":"&#x25CF;";
+		marker.setAttribute("isbreakpoint", true);
 	}
 	editor.setGutterMarker(line, "lint", marker);
 }

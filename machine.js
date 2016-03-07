@@ -34,7 +34,11 @@ var MACHINE_CONSTANTS = (function () {
 
 		STOP_NORMAL        : i++,
 		STOP_HALTED        : i++,
-		STOP_BREAKPOINT    : i++
+		STOP_BREAKPOINT    : i++,
+
+		RUN_NORMAL         : i++,
+		RUN_RETURN         : i++,
+		RUN_ENTER          : i++
 	};
 })();
 
@@ -604,6 +608,9 @@ function MachineRunner(_allfn, _fcall, _options) {
 		var s = m.step(retval);
 		retval = null; // Reset retval, if not already done.
 		
+		var rv = { lastAction: MACHINE_CONSTANTS.RUN_NORMAL };
+		
+
 		if(s.state == MACHINE_CONSTANTS.EXEC_RUNNING) {
 			// Do nothing, the machine is still running.
 
@@ -612,6 +619,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 			if(!s.functioncall)
 				mrun$except("Machine WAITING without a pending function call.", s.lineno);
 
+			rv.lastAction = MACHINE_CONSTANTS.RUN_ENTER;
 			// Invoke the recursive function.
 			mrun$invokefunc(s.functioncall);
 
@@ -623,11 +631,14 @@ function MachineRunner(_allfn, _fcall, _options) {
 			// Store the return value in retval for the next invocation.
 			retval = s.retval;
 
+			rv.lastAction = MACHINE_CONSTANTS.RUN_RETURN;
 			// Return the function.
 			mrun$returnfunc();
 		}
 
 		step++;
+
+		return rv;
 	}
 
 	// Returns a state descriptor, used to render the view of
@@ -715,7 +726,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 			// Check for line number breakpoints:
 			if(options.lines && stack.length > 0) {
 				var cs = stack[stack.length - 1].getState();
-				if(options.lines.indexOf(cs.lineno) >= 0 && cs.state == MACHINE_CONSTANTS.EXEC_RUNNING){
+				if(options.lines.indexOf(cs.lineno) >= 0 && (st.lastAction != MACHINE_CONSTANTS.RUN_RETURN)){
 					toBreak = true;
 					stopCause = MACHINE_CONSTANTS.STOP_BREAKPOINT;
 				}
