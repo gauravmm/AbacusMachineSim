@@ -40,6 +40,8 @@ function start(){
 
   	$('runtimeOut').onclick = compileAndTest;
   	document.onkeyup = handleKeyboardShortcuts;
+
+  	loadState();
 };
 
 function setRunner(r) {
@@ -172,6 +174,8 @@ function onCompile(cm) {
 	if(cm) {
 		$('defaultView').style.display = "none";
 		$('runningView').style.display = "flex";
+		clearTimeout(saveTimer);
+		saveState();
 	} else {
 		$('defaultView').style.display = "flex";
 		$('runningView').style.display = "none";
@@ -273,11 +277,18 @@ function handleChange() {
 		onCompile(null); 
 	}
 	clearTimeout(saveTimer);
-	saveTimer = setTimeout(saveFile, SAVE_DELAY);
+	saveTimer = setTimeout(saveState, SAVE_DELAY);
 }
 
-function saveFile() {
-	
+function saveState() {
+	localStorage.setItem("CodeString", editor.getValue());
+}
+
+function loadState() {
+	var cs = localStorage.getItem("CodeString");
+	if(cs) {
+		editor.setValue(cs);
+	}
 }
 
 // 
