@@ -1,0 +1,433 @@
+/*
+ * Abacus Machine Simulator
+ * Gaurav Manek
+ *
+ */
+
+html, body {
+	height: 100%;
+	width: 100%;
+	padding:0;
+	margin:0;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+
+	font-family: 'Source Sans Pro', sans-serif;
+	font-size: 90%;
+}
+
+pre, code, .code, .CodeMirror, #stack, #registers, #runtimeOut, .kbrdShort, .codeSnippet {
+	font-family: 'Inconsolata', Courier, monospace;
+}
+
+h1,h2,h3 {
+	font-family: 'Merriweather', serif;
+
+	text-shadow: 0px 1px rgba(255, 255, 255, 0.4);
+}
+
+a {
+	color: black;
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: none;
+}
+
+.container {
+	flex: 1 1 auto;
+
+	display: flex;
+	flex-direction: reverse-row;
+	flex-wrap: nowrap;
+}
+
+#header {
+	position: relative;
+
+	height: 3rem;
+	width: 100%;
+
+	background: #84b4e1;
+	box-shadow: 0 6px 6px -6px black;
+}
+#header>h1 {
+	font-size: 200%;
+	display: inline-block;
+	margin: 0.5rem 0 0 calc(4rem + 0.5em);
+}
+
+#header>.links {
+	display: inline-block;
+
+	position: absolute;
+	right: 0;
+	bottom: 0;
+}
+.links>small {
+	display: inline-block;
+	min-width: 6rem;
+	text-align: center;
+
+	margin-right: 8px;
+
+	border-bottom: 0.25rem solid #c3daf0;
+}
+
+.attribution {
+	position: absolute;
+	top: 3px;
+	right: 0;
+	margin: 0px;
+	padding: 0 1em 0 0.5em;
+	height: 18px;
+
+	background: #c3daf0;
+}
+
+
+.codeWrapper {
+	margin-left: -5px;
+	flex: 1 1 auto;
+	position: relative;
+}
+
+.codeWrapper > .CodeMirror {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+
+	height: 100%;
+	height: calc(100% - 1px);
+}
+
+.inputArea {
+	background: #F7F7F7;
+	padding: 0px 5px;
+	width: 75%;
+
+	border-left: thick solid #c3daf0;
+
+	display: flex;
+	flex-direction: column;
+	flex-wrap: nowrap;
+}
+
+.inputArea>:first-child {
+	margin-top: 5px;
+}
+
+.inputArea>* {
+	margin-top: 3px;
+	margin-bottom: 0px;
+}
+
+.inputArea>:last-child {
+	margin-bottom: 5px;
+}
+
+.codeView {
+	margin: 20px 36px;
+	margin: 20px calc(4rem + 7px);
+	padding: 8px;
+
+	border: thin solid black;
+}
+
+.inputArea input {
+	box-sizing: border-box;
+	width: 100%;
+	background: none;
+	border: none;
+	border-bottom: thin solid black;
+	text-align: right;
+}
+
+#codeArea {
+	flex: 1 1 auto;
+}
+
+#runtimeOut {
+	padding-left: 5px;
+	padding-bottom: 2px;
+	cursor: pointer;
+}
+
+.runtimeReady {
+	border: solid thin #333;
+	border-left: 5px solid black;
+	background: #FFF;
+}
+
+.runtimeGood {
+	border: solid thin #333;
+	border-left: 5px solid #05B904;
+	background: #FFF;
+}
+
+.runtimeError {
+	border: solid thin #333;
+	border-left: 5px solid #B90504;
+	background: #fdb2b1;
+}
+
+/*
+ * LHS views
+ */
+
+#defaultView {
+	margin: 0 -5px;
+	position: relative;
+}
+#instructions {
+	position: absolute;
+	left: 10px;
+	top: 10px;
+	right: 10px;
+	bottom: 10px;
+
+	border: thin solid black;
+	border-radius: 7px;
+	background: white;
+	padding: 10px;
+}
+#instructions>h3 {
+	text-align: center;
+}
+#instructions .kbrdShort, #instructions .codeSnippet {
+	display: inline-block;
+    padding: 3px;
+    border-radius: 3px;
+    font-size: 80%;
+    font-size: calc(1em - 3px);
+}
+#instructions .kbrdShort {
+    background: #333;
+    color: #EEE;
+}
+#instructions .codeSnippet {
+	background: #EEE;
+	border: thin dashed #999;
+}
+#instructions a {
+	text-decoration: underline;
+}
+
+
+.stateArea {
+	box-sizing:border-box;
+	padding: 0 5px;
+	overflow: auto;
+	width: 25%;
+	flex: 1 0 auto;
+
+	display: flex;
+
+	background: #F7F7F7;
+}
+.stateArea>div {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+}
+
+#runningView>:first-child {
+	padding-top: 12px;
+}
+
+
+/*
+ * Stack View
+ */
+
+#stack {
+	margin: 7px 0;
+}
+
+#stack>ol {
+	list-style: none outside none;
+	padding: 0;
+	margin: 0;
+}
+
+#stack>ol>li:last-child::before {
+	content: "";
+}
+#stack>ol>li {
+	margin: 2px 0 2px 0;
+	padding: 2px 4px;
+	border: solid thin white;
+	cursor: pointer;
+	background: #EEE;
+}
+#stack>ol>li:hover {
+	background: #c3daf0;
+}
+#stack>ol>li::before {
+	content: "\27A6\2004";
+	font-size: 85%;
+}
+#stack>ol>li>span:last-child {
+	float:right;
+}
+#stack>ol>li.currStackTrace {
+	border: solid thin black;
+}
+
+/*
+ * Toolbar
+ */
+
+.toolbarRow {
+	display: flex;
+	margin: 0 0 4px;
+}
+.toolbarRow>.btn {
+	flex: 1 1 auto;
+}
+.toolbarRow>#funcCall {
+	width: 80%;
+}
+.toolbarRow>input {
+	border: none;
+	border-bottom: thin solid gray;
+	background: inherit;
+}
+.toolbarSmallGap .btn {
+	margin: 0 2px;
+}
+.btn {
+	text-align: center;
+	margin: 0 7px;
+	cursor: pointer;
+	border-radius: 0.2em;
+}
+.btn:hover {
+	background: #333;
+	color: #FFF;
+}
+#toolbar {
+	margin: 0 -5px 0;
+	padding: 12px 7px 0;
+	border-bottom: thin solid gray;
+	background: #EEE;
+}
+.codeRunning .showWhenRunning {
+	display: flex;
+}
+.codeNotRunning .showWhenRunning {
+	display: none;
+}
+
+/*
+ * Tooltip support
+ * 
+ */
+
+#toolbar .btn[tooltip]:before {
+    content: attr(tooltip);
+    position: absolute;
+    display: block;
+	pointer-events: none;
+    
+    background: #333;
+    color: #EEE;
+    opacity: 0;
+
+    padding: 0.5em;
+    margin-top: -2em;
+    border-radius: 0.2em;
+    z-index: 10;
+}
+#toolbar .btn[tooltip]:hover:before {
+    opacity: 1;
+
+	transition:opacity 0.1s linear 0.5s;
+}
+
+/*
+ * Divider
+ */
+
+.viewDivider {
+	margin: 0 -5px 7px;
+	border-bottom: thin solid gray;
+}
+
+/*
+ * Register View
+ */
+
+#registers {
+	flex: 1 1 auto;
+	margin: 0 -5px 0 0;
+	padding: 7px 5px 5px 0;
+	overflow-y: scroll;
+}
+
+#registers>div {
+	display: flex;
+	flex-direction: row;
+	padding: 2px 4px;
+}
+#registers>div:nth-child(2n) {
+	background: #EEE;
+}
+
+#registers .registerName {
+	text-align: right;
+	color: #05a;
+	flex: 1 1 auto;
+}
+#registers .equals {
+	padding: 0 0.5em;
+}
+#registers input {
+	background: inherit;
+	border: none;
+	width: 4em;
+}
+
+/*
+ * Gutter
+ */
+
+.lint {
+	width: .8em;
+}
+.lintBreakpoint {
+	color: #922;
+	text-align: center;
+}
+.lintBreakpoint.inputDirty {
+	color: #229;
+}
+.testResult {
+	border-radius: 3px;
+}
+.testResult[tt]::after {
+    content: attr(tt);
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 3px;
+    margin-top: 1em;
+
+	padding-left: 1.6em;
+    width: 200px;
+    background: inherit;
+}
+.testResult[tt]:hover::after {
+	opacity: 1;
+}
+.testSuccess {
+	background: #A1DBB2;
+}
+.testFailed {
+	background: #F45D4C;
+}
