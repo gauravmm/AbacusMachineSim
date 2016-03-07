@@ -13,7 +13,6 @@ var TEST_DELAY = 10;
 var editor;
 var compiled = null; // Is there any compiled code ready to be run? If there is, then this contains the compiled functions. If not, its null
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
-var breakpoints = []; // Breakpoints currently in force.
 // Compiler tests to run
 var testTimer;
 
@@ -35,6 +34,7 @@ function start(){
 		gutters: ["CodeMirror-linenumbers", "lint"]
   	});
   	editor.on("gutterClick", handleGutterClick);
+  	editor.on("change", handleChange);
 
   	$('runtimeOut').onclick = compileAndTest;
   	document.onkeyup = handleKeyboardShortcuts;
@@ -177,17 +177,10 @@ function onCompile(cm) {
 	}
 	resetGutter();
 	clearState();
-	redrawBreakpoints();
 }
 
 function onCodeLoaded() {
 	redrawState();
-}
-
-function redrawBreakpoints() {
-	var bp = breakpoints;
-	breakpoints = [];
-	bp.forEach(checkAndHandleBreakpoint);
 }
 
 //
@@ -222,31 +215,32 @@ function stepOut() {
 function stepOver() {
 	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OVER);
 }
+
 function handleGutterClick(cm, n) {
-	checkAndHandleBreakpoint(n + 1);
+	checkAndHandleBreakpoint(n);
 }
 function checkAndHandleBreakpoint(n) {
-	if(breakpoints.indexOf(n) >= 0) {
+	var lineinfo = editor.lineInfo(n);
+	if(isBreakpointOnLine(lineinfo)) {
 		// It's already in the list, so we remove it.
 		setBreakpoint(n, false);
-		breakpoints = breakpoints.filter(function (z) {return z != n});
 		return; 
 	}
 
 	if(!compiled) {
 		// If we aren't compiled yet, set an empty breakpoint.
 		setBreakpoint(n, true, false); 
-		breakpoints.push(n);
 	} else {
+		var m = n + 1; // For compatibility with the engine, enumerates starting at line 1.
+
 		// Now we check to see if this line is elligible to be a breakpoint:
 		for(var i = 0; i < compiled.length; ++i) {
 			var e = compiled[i];
-			if (e.lineno > n)
+			if (e.lineno > m)
 				return; // We've passed n, so we can return.
 			
-			if(e.lineno == n) {
+			if(e.lineno == m) {
 				setBreakpoint(n, true, true);
-				breakpoints.push(n);
 				// The breakpoint corresponds to the function entrypoint
 				// We set the triangle flag and return.
 				return;
@@ -256,23 +250,26 @@ function checkAndHandleBreakpoint(n) {
 			// evaluation if need be.
 			var lineidx = -1;
 			for(var j = e.brks.length - 1; j >= 0; --j) {
-				if(e.brks[j] >= n) {
+				if(e.brks[j] >= m) {
 					// Oh, goody! The breakpoint is before this line, so it's probably in this function.
 					lineidx = e.exec[j].lineno;
 				} else {
 					break; // Okay, the breakpoint 
-				} 
+				}
 			}
 
 			if(lineidx >= 0) {
-				setBreakpoint(lineidx, true, false);
-				breakpoints.push(lineidx);
+				setBreakpoint(lineidx - 1, true, false);
 				// The breakpoint corresponds to the line within the function.
 				// We set the circle flag and return.
 				return;
 			}
 		}
 	}
+}
+
+function handleChange() {
+	onCompile(null); // Remove compiled version.
 }
 
 // 
@@ -316,7 +313,7 @@ function runnerStep(mode) {
 		return;
 	}
 
-	var rv = runner.run({ stepmode: mode, lines: breakpoints });
+	var rv = runner.run({ stepmode: mode, lines: getBreakpoints() });
 	if(rv.state == MACHINE_CONSTANTS.EXEC_HALTED){
 		success(runner.fcall.toString() + " returned with (" + rv.retval.join(", ") + ")");
 		clearState();
@@ -330,6 +327,15 @@ function runnerStep(mode) {
 
 	redrawState();
 	jumpTo(rv.lineno);
+}
+function getBreakpoints() {
+	var bp = [];
+	editor.eachLine(function (l) {
+		if(isBreakpointOnLine(l)) {
+			bp.push(l.lineNo());
+		}
+	});	
+	return bp;
 }
 
 //
@@ -407,23 +413,19 @@ function success(str) {
 // UI Drawing Functions
 //
 
+function isBreakpointOnLine(l) {
+	return l.gutterMarkers && l.gutterMarkers.lint && l.gutterMarkers.lint.getAttribute("isbreakpoint");
+}
 function resetGutter() {
 	// Before we clear the gutter, we read the current positions of
 	// the breakpoints off. We need to do this because CodeMirror
 	// keeps track of lines for us automatically. It's easier to
 	// use that than to maintain control separately.
-	if(breakpoints.length > 0) {
-		var bp = breakpoints;
-		breakpoints = [];
-		editor.eachLine(function (l) {
-			if(l.gutterMarkers && l.gutterMarkers.lint) {
-				if (l.gutterMarkers.lint.getAttribute("isbreakpoint")) {
-					breakpoints.push(l.lineNo() + 1);
-				}
-			}
-		});	
-	}
+	var bp = getBreakpoints();
+	
 	editor.clearGutter("lint");
+
+	bp.forEach(checkAndHandleBreakpoint);
 }
 function setTestGutter(line, passed, tooltip) {
 	var marker = document.createElement("div");
@@ -435,11 +437,10 @@ function setTestGutter(line, passed, tooltip) {
 }
 
 function setBreakpoint(line, set, isFuncEntry) {
-	line = line - 1;
 	var marker = null;
 	if(set) {
 		marker = document.createElement("div");
-		marker.className = "lintBreakpoint";
+		marker.className = "lintBreakpoint" + (compiled?"":" inputDirty");
 		marker.innerHTML = isFuncEntry?"&#x25BA;":"&#x25CF;";
 		marker.setAttribute("isbreakpoint", true);
 	}

@@ -404,6 +404,9 @@ a:hover {
 	color: #922;
 	text-align: center;
 }
+.lintBreakpoint.inputDirty {
+	color: #229;
+}
 .testResult {
 	border-radius: 3px;
 }
