@@ -12,7 +12,6 @@ A big thank you to [https://cs.brown.edu/~sk/](Prof. Shriram Krishnamurthi) for 
 The `abacusmachine` language is desgined to be a simple and effective language for specifying abacus machines. It comes with built-in testing and scope features to make it easier to build complex functions and verify code correctness.
 
 ### Control Flow
-
 Control flow proceeds sequentially forwards unless changed by a `goto` or branching within a register command. Jump anchors are specified at the start of a line with a leading `:`. All names must begin with a letter and can include letters, numbers, and `_`. Examples are:
 ```
 	:anchor_name
@@ -24,7 +23,6 @@ Within register commands, `next` can be used to refer to the next line instead o
 Runtime detection of infinite loops has been implemented, so some types of infinite loops will stop the engine automatically.
 
 ### Registers
-
 As with any abacus machine, an unlimited number of registers storing natural numbers are available. Registers are always specified by square brackets, and may be defined numerically (`[1]`, `[5]`, etc.) or by name (`[ret_val]`, `[arg1]`, etc.). Registers contain the value 0 by default.
 
 Two operations can be performed on registers, addition and subtraction. They are written as:
@@ -40,7 +38,6 @@ Two operations can be performed on registers, addition and subtraction. They are
 
 
 ### Functions
-
 All executable code is organized into functions, each with its own scope. The functions are written as:
 ```
 function rem([1],[arg2]) -> [rv1], [7] {
@@ -56,11 +53,14 @@ Where `rem` is the function name, the function arguments are given as a comma-se
 Function calls are made as follows: `quo([1], [2]) -> [6], [8];`. Registers in the parenthesis are passed by value to the function, and the return values are copied to the source registers, overwriting whatever previous values were stored.
 
 ### Recursion
-
 In actual abacus machines the function abstraction does not exist, and functions are implemented by "copying" the structure of the abacus machine into each place the function is invoked. To ensure that this language does not (accidentally) allow for an abacus machine with infinite states to be implemented, recursive calls (including mutual recursion) are not allowed.
 
 ### Testing
-
 Tests are built into the language to encourage good testing practices. A `where` block at the end of a function contains tests of the form `name(1, 2, 3) is 2, 3` or `name(1, 2) is name(4, 5)`. The left-hand side must be a function call and the right-hand side can be a list of integers or another function call. The `is` operator is checks for equality: a test is only considered passed if the output of the function on the left and right (or the values on the right) are of equal length and value.
 
 Function tests are automatically run in *dependency order*, where function `a` is evaluated before `b` is `b` depends on `a`. Testing may be stopped early if any test fails.
+
+## Features
+
+### Automatic Saving of Code
+Each time code is updated, it is automatically saved by the platform. To restore the starting code, delete everything in the editor window, wait for at least two seconds, then refresh the window.

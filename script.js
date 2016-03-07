@@ -303,7 +303,7 @@ function saveState() {
 function loadState() {
 	if(localStorage) {
 		var cs = localStorage.getItem("CodeString");
-		if(cs) {
+		if(cs && cs.trim().length > 0) {
 			editor.setValue(cs);
 		}
 	}

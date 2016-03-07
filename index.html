@@ -37,7 +37,7 @@
           <p>If your code compiles correctly, these instructions will be replaced by an debugging window where you can set breakpoints, run functions, and step through execution of your code. (This is available even if some of your tests fail.)</p>
           <p>Tests are built into the language to encourage good testing practices. Each time you compile your code, the tests you define are run against it.
           A <span class="codeSnippet">where</span> block at the end of a function contains tests like <span class="codeSnippet">name(1, 2, 3) is 2, 3</span>. The left-hand side must be a function call and the right-hand side can be a list of integers or another function call. </p>
-          <p>For additional documentation, refer to the <a href="https://github.com/gauravmm/AbacusMachineSim/blob/develop/README.md">README</a>.</p>
+          <p>For additional documentation, refer to the <a href="https://github.com/gauravmm/AbacusMachineSim/blob/gh-pages/README.md">README</a>.</p>
         </div>
       </div>
       <div id="runningView" style="display: none;">
@@ -61,39 +61,164 @@
     </div>
     <div class="inputArea" class="inputDirty">
       <div id="runtimeOut" class="runtimeReady">Click here or hit Ctrl+Enter to build and test.</div>
-      <div class="codeWrapper"><textarea id="codeArea">// This is a comment
-// This is another comment 
-/* This
- * is 
- * a
- * multiline
- * comment
+      <div class="codeWrapper"><textarea id="codeArea">
+/* Sample code
+ * 
+ * Here are some sample functions with tests,
+ * to help you get started with this.
+ * 
+ * For a challenge, try implementing primality
+ * testing, Cantor's zig-zag function. For a 
+ * really fun challenge, try implementing Diffie-
+ * Hellman.
  */
-function name([1], [2], [3]) -> [1] {
-  cpy([2]) -> [1];
-}
-function cpy([1]) -> [2] {
-  cpy1([1]) -> [2];
-}
 
-function cpy1([1]) -> [1] {
-  // Do nothing
+function div([dividend], [divisor]) -> [quo], [rem] {
+  cpy([dividend]) -> [rem];
+  
+  :start
+  // Subtract divisor from dividend
+  sub2([dividend], [divisor]) -> [dividend], [neg];
+  // If the dividend is still positive, then we 
+  // still have more to subtract. We add one to
+  // the quotient, and subtract the quotient from
+  // the remainder.
+  [dividend]-,next,:exitLoop;
+  [dividend]+;
+  [quo]+;
+  sub([rem], [divisor]) -> [rem];
+  goto :start;
+  
+  :exitLoop
+  // When we get here, we need to check if [neg] is 
+  // zero. If it is, then the final subtraction operation
+  // yielded a zero, then [dividend] evenly divides [divisor]
+  // In that case, we set [rem] to zero, and increment [quo]
+  [neg]-,:end,next;
+  cpy(0) -> [rem];
+  [quo]+;
+  
+  :end
 } where {
-  cpy1(7) is 7;
-  cpy1(8) is cpy1(6);
-  cpy1(6) is cpy1(6);
+  div(2, 1) is 2, 0;
+  div(15, 4) is 3, 3;
+  div(81, 10) is 8, 1;
+  div(21, 7) is 3, 0;
+  div(31, 5) is 6, 1;
 }
 
-function a([1]) -> [1] {
-  [1]+;
-  b([1]) -> [1];
-}
-
-function b([1]) -> [1] {
-  [1]+;
+function pow([1], [2]) -> [retval] {
+  cpy(1) -> [retval];
+  :start
+  [2]-,next,:end;
+  mult([retval], [1]) -> [retval];
+  goto :start;
+  :end
 } where {
-  b(7) is 8;
-  b(6) is 7;
+  pow(1, 0) is 1;
+  pow(7, 0) is 1;
+  pow(7, 1) is 7;
+  pow(7, 2) is 49;
+  pow(7, 3) is 343;
+  pow(7, 4) is 2401;
+}
+
+function mult([1], [2]) -> [retval] {
+  :start
+  [2]-,next,:end;
+  sum([retval], [1]) -> [retval];
+  goto :start;
+  :end
+} where {
+  mult(0, 0) is 0;
+  mult(8, 0) is 0;
+  mult(0, 4) is 0;
+  mult(6, 6) is 36;
+}
+
+// Subtraction with positive and negative parts:
+function sub2([1], [2]) -> [1], [2] {
+  // Check for [1] being zero.
+  [1]-,next,:end;
+  [1]+;
+  // Check for [2] being zero.
+  [2]-,next,:end;
+  [2]+;
+  
+  :startLoop
+  [2]-,next,:end;
+  // Here we compensate for the extra number
+  // removed from [2] by passing control flow
+  // to :endAdd2 instead of :end.
+  [1]-,:startLoop,:endAdd2; 
+  goto :end;
+  
+  // We increment [2] to offset the extra removed
+  // from it in the first loop line.
+  :endAdd2
+  [2]+;
+  
+  :end
+} where {
+  sub2(0, 0) is 0, 0;
+  sub2(2, 0) is 2, 0;
+  sub2(0, 2) is 0, 2;
+  sub2(4, 4) is 0, 0;
+  sub2(8, 3) is 5, 0;
+  sub2(3, 8) is 0, 5;
+  sub2(10, 2) is 8, 0;
+  sub2(2, 12) is 0, 10;
+}
+
+
+function sub([1], [2]) -> [1] {
+  [2]-,next,:end;
+  [1]-,next,next;
+  :startLoop
+  [2]-,next,:end;
+  [1]-,:startLoop,next;
+  :end
+} where {
+  sub(0, 0) is 0;
+  sub(1, 0) is 1;
+  sub(4, 4) is 0;
+  sub(8, 3) is 5;
+  sub(10, 2) is 8;
+  sub(2, 12) is 0;
+}
+
+function sum([1], [2]) -> [1] {
+  :start
+  // Remember, registers branch based on the value
+  // before decrementing, not after. We do things in
+  // this order because it makes it possible to handle
+  // zeros.
+  [2]-,next,:end;
+  [1]+,:start;
+  :end
+} where {
+  sum(0, 0) is 0;
+  sum(11, 0) is 11;
+  sum(11, 1) is 12;
+  sum(2, 5) is 7;
+}
+
+function signum([1]) -> [2] {
+  [1]-,:ifpos,:ifzero;
+  :ifpos
+  [2]+;
+  :ifzero
+} where {
+  signum(0) is 0;
+  signum(1) is 1;
+  signum(8) is 1;
+}
+
+function cpy([1]) -> [1] {
+  // Do nothing.
+} where {
+  cpy(0) is 0;
+  cpy(7) is 7;
 }
 </textarea>
     </div>
