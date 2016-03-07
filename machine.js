@@ -65,7 +65,6 @@ var Compiler = (function() {
 			deps: [], // Dependencies
 			regs: [], // Registers
 			exec: [], // Code to execute
-			brks: [], // Lines elligible for breakpoints
 			lineno: fn.lineno
 		}
 		var anchors = {}; // Anchor positions
@@ -210,12 +209,6 @@ var Compiler = (function() {
 				}
 			}
 		}
-
-		rv.brks = rv.exec.reduce(function(v, e){ 
-			if(e.type != MACHINE_CONSTANTS.CODE_TYPE_RETURN)
-				return v.concat([e.lineno]);
-			return v;
-		}, []);
 
 		// Tests 
 		var tests = [];

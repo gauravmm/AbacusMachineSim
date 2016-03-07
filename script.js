@@ -251,8 +251,11 @@ function checkAndHandleBreakpoint(n) {
 			// We proceed through the breakpoints backwards, so that we can short-circuit
 			// evaluation if need be.
 			var lineidx = -1;
-			for(var j = e.brks.length - 1; j >= 0; --j) {
-				if(e.brks[j] >= m) {
+			for(var j = e.exec.length - 1; j >= 0; --j) {
+				if(e.exec[j].type == MACHINE_CONSTANTS.CODE_TYPE_RETURN)
+					continue;
+				
+				if(e.exec[j].lineno >= m) {
 					// Oh, goody! The breakpoint is before this line, so it's probably in this function.
 					lineidx = e.exec[j].lineno;
 				} else {
