@@ -30,7 +30,11 @@ var MACHINE_CONSTANTS = (function () {
 		DBG_STEP_OVER      : i++,
 		DBG_STEP_INTO      : i++,
 		DBG_STEP_OUT       : i++,
-		DBG_RUN_TO_END     : i++
+		DBG_RUN_TO_END     : i++,
+
+		STOP_NORMAL        : i++,
+		STOP_HALTED        : i++,
+		STOP_BREAKPOINT    : i++
 	};
 })();
 
@@ -56,7 +60,8 @@ var Compiler = (function() {
 			rets: [], // The registers to return.
 			deps: [], // Dependencies
 			regs: [], // Registers
-			exec: [],  // Code to execute
+			exec: [], // Code to execute
+			brks: [], // Lines elligible for breakpoints
 			lineno: fn.lineno
 		}
 		var anchors = {}; // Anchor positions
@@ -201,6 +206,12 @@ var Compiler = (function() {
 				}
 			}
 		}
+
+		rv.brks = rv.exec.reduce(function(v, e){ 
+			if(e.type != MACHINE_CONSTANTS.CODE_TYPE_RETURN)
+				return v.concat([e.lineno]);
+			return v;
+		}, []);
 
 		// Tests 
 		var tests = [];
@@ -645,7 +656,7 @@ function MachineRunner(_allfn, _fcall, _options) {
 	// In the worst case, it stops at DEFAULT_MAX_ITER.
 	function mrun$runner(options) {
 		// options, contains:
-		//   lines:     [not done yet] Breakpoints corresponding to line numbers,
+		//   lines:     Breakpoints corresponding to line numbers,
 		//   registers: [not done yet] breakpoints corresponding to change in a particular register
 		//   stepmode:  MACHINE_CONSTANTS.{DBG_STEP_OVER, DBG_STEP_INTO, DBG_STEP_OUT, DBG_RUN_TO_END}
 		//              Defaults to DBG_RUN_TO_END.
@@ -668,13 +679,17 @@ function MachineRunner(_allfn, _fcall, _options) {
 		// Ending iteration
 		var endC = step + options.max_iter;
 
+		var stopCause = MACHINE_CONSTANTS.STOP_NORMAL;
+
 		while(step < endC) {
 			var toBreak = false;
 			var st = mrun$next();
 
 			// If the machine has halted, stop.
-			if(state == MACHINE_CONSTANTS.EXEC_HALTED)
+			if(state == MACHINE_CONSTANTS.EXEC_HALTED) {
+				stopCause = MACHINE_CONSTANTS.STOP_HALTED;
 				break;
+			}
 
 			switch(options.stepmode) {
 				case MACHINE_CONSTANTS.DBG_STEP_INTO:
@@ -697,11 +712,20 @@ function MachineRunner(_allfn, _fcall, _options) {
 					// Do nothing, just keep going.
 			}
 
+			// Check for line number breakpoints:
+			if(options.lines && stack.length > 0) {
+				var cs = stack[stack.length - 1].getState();
+				if(options.lines.indexOf(cs.lineno) >= 0 && cs.state == MACHINE_CONSTANTS.EXEC_RUNNING){
+					toBreak = true;
+				}
+				stopCause = MACHINE_CONSTANTS.STOP_BREAKPOINT;
+			}
+
 			if(toBreak)
 				break;
 		}
 
-		var rv = { state: state, steps: step, lineno: mrun$getlineno() };
+		var rv = { state: state, steps: step, lineno: mrun$getlineno(), stop: stopCause };
 
 		// If the machine has halted, stop.
 		if(state == MACHINE_CONSTANTS.EXEC_HALTED) {

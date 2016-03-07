@@ -13,7 +13,7 @@ var TEST_DELAY = 10;
 var editor;
 var compiled = null; // Is there any compiled code ready to be run? If there is, then this contains the compiled functions. If not, its null
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
-var linecorr = null; // Line number correspondences used to set breakpoints.
+var breakpoints = []; // Breakpoints currently in force.
 // Compiler tests to run
 var testTimer;
 
@@ -85,7 +85,6 @@ function compileAndTest() {
 			clearState();
 			return;
 		} else {
-			console.log(err);
 			throw err;
 		}
 	}
@@ -164,7 +163,7 @@ function nextTest(tests) {
 }
 
 //
-// Enabling/Disabling bits of UI:
+// Responding to state changes of the runner/compiler.
 //
 
 function onCompile(cm) {
@@ -178,12 +177,18 @@ function onCompile(cm) {
 	}
 	resetGutter();
 	clearState();
+	redrawBreakpoints();
 }
 
 function onCodeLoaded() {
 	redrawState();
 }
 
+function redrawBreakpoints() {
+	var bp = breakpoints;
+	breakpoints = [];
+	bp.forEach(checkAndHandleBreakpoint);
+}
 
 //
 // Responding to UI events.
@@ -218,8 +223,56 @@ function stepOver() {
 	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OVER);
 }
 function handleGutterClick(cm, n) {
-	var info = cm.lineInfo(n);
-	setBreakpoint(n, true);
+	checkAndHandleBreakpoint(n + 1);
+}
+function checkAndHandleBreakpoint(n) {
+	if(breakpoints.indexOf(n) >= 0) {
+		// It's already in the list, so we remove it.
+		setBreakpoint(n, false);
+		breakpoints = breakpoints.filter(function (z) {return z != n});
+		return; 
+	}
+
+	if(!compiled) {
+		// If we aren't compiled yet, set an empty breakpoint.
+		setBreakpoint(n, true, false); 
+		breakpoints.push(n);
+	} else {
+		// Now we check to see if this line is elligible to be a breakpoint:
+		for(var i = 0; i < compiled.length; ++i) {
+			var e = compiled[i];
+			if (e.lineno > n)
+				return; // We've passed n, so we can return.
+			
+			if(e.lineno == n) {
+				setBreakpoint(n, true, true);
+				breakpoints.push(n);
+				// The breakpoint corresponds to the function entrypoint
+				// We set the triangle flag and return.
+				return;
+			}
+
+			// We proceed through the breakpoints backwards, so that we can short-circuit
+			// evaluation if need be.
+			var lineidx = -1;
+			for(var j = e.brks.length - 1; j >= 0; --j) {
+				if(e.brks[j] >= n) {
+					// Oh, goody! The breakpoint is before this line, so it's probably in this function.
+					lineidx = e.exec[j].lineno;
+				} else {
+					break; // Okay, the breakpoint 
+				} 
+			}
+
+			if(lineidx >= 0) {
+				setBreakpoint(lineidx, true, false);
+				breakpoints.push(lineidx);
+				// The breakpoint corresponds to the line within the function.
+				// We set the circle flag and return.
+				return;
+			}
+		}
+	}
 }
 
 // 
@@ -263,14 +316,18 @@ function runnerStep(mode) {
 		return;
 	}
 
-	var rv = runner.run({ stepmode: mode });
+	var rv = runner.run({ stepmode: mode, lines: breakpoints });
 	if(rv.state == MACHINE_CONSTANTS.EXEC_HALTED){
 		success(runner.fcall.toString() + " returned with (" + rv.retval.join(", ") + ")");
 		clearState();
 		return;
 	} else if(rv.state == MACHINE_CONSTANTS.EXEC_RUNNING){
-		status(runner.fcall.toString() + " run for " + rv.steps + " steps.");
+		var statusStr = runner.fcall.toString() + " run for " + rv.steps + " steps.";
+		if(rv.stop == MACHINE_CONSTANTS.STOP_BREAKPOINT)
+			statusStr = "[Breakpoint] " + statusStr;
+		status(statusStr);
 	}
+
 	redrawState();
 	jumpTo(rv.lineno);
 }
@@ -362,12 +419,14 @@ function setTestGutter(line, passed, tooltip) {
 	editor.setGutterMarker(line, "lint", marker);
 }
 
-function setBreakpoint(line, set) {
+function setBreakpoint(line, set, isFuncEntry) {
+	line = line - 1;
 	var marker = null;
 	if(set) {
 		marker = document.createElement("div");
 		marker.className = "lintBreakpoint";
-		marker.innerHTML = "&#x25CF;";
+		marker.innerHTML = isFuncEntry?"&#x25BA":"&#x25CF;";
+		marker.setAttribute("isBreakpoint", true);
 	}
 	editor.setGutterMarker(line, "lint", marker);
 }
