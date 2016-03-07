@@ -8,6 +8,7 @@
 // Configuration
 var LOGGING = true;
 var TEST_DELAY = 10;
+var SAVE_DELAY = 1000;
 
 // Global variables
 var editor;
@@ -15,6 +16,7 @@ var compiled = null; // Is there any compiled code ready to be run? If there is,
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
 // Compiler tests to run
 var testTimer;
+var saveTimer;
 
 function $(s){
 	return document.getElementById(s);
@@ -45,7 +47,6 @@ function setRunner(r) {
 	if(r) {
 		$('runningView').className = "codeRunning";
 		status("Loaded function " + runner.fcall.toString() + ", use step-through commands to continue.");
-		jumpTo(runner.lineno());
 	} else {
 		$('runningView').className = "codeNotRunning";
 	}
@@ -175,12 +176,9 @@ function onCompile(cm) {
 		$('defaultView').style.display = "flex";
 		$('runningView').style.display = "none";
 	}
+	runner = null;
 	resetGutter();
 	clearState();
-}
-
-function onCodeLoaded() {
-	redrawState();
 }
 
 //
@@ -269,7 +267,17 @@ function checkAndHandleBreakpoint(n) {
 }
 
 function handleChange() {
-	onCompile(null); // Remove compiled version.
+	if(compiled) {
+		// If the buffer was previously considered "clean"
+		// remove the compiled version to mark it as dirty.
+		onCompile(null); 
+	}
+	clearTimeout(saveTimer);
+	saveTimer = setTimeout(saveFile, SAVE_DELAY);
+}
+
+function saveFile() {
+	
 }
 
 // 
@@ -307,32 +315,34 @@ function loadFunction(funstr) {
 	}
 	return true;
 }
+
 function runnerStep(mode) {
 	if(!runner) {
 		error("You have to load a function before you can step through it.");
 		return;
 	}
 
-	var rv = runner.run({ stepmode: mode, lines: getBreakpoints() });
+	var rv = runner.run({ stepmode: mode, lines: getBreakpoints(true) });
 	if(rv.state == MACHINE_CONSTANTS.EXEC_HALTED){
 		success(runner.fcall.toString() + " returned with (" + rv.retval.join(", ") + ")");
 		clearState();
 		return;
-	} else if(rv.state == MACHINE_CONSTANTS.EXEC_RUNNING){
+	} else if(rv.state == MACHINE_CONSTANTS.EXEC_RUNNING) {
 		var statusStr = runner.fcall.toString() + " run for " + rv.steps + " steps.";
 		if(rv.stop == MACHINE_CONSTANTS.STOP_BREAKPOINT)
 			statusStr = "[Breakpoint] " + statusStr;
 		status(statusStr);
+		redrawState();
+		jumpTo(rv.lineno);
 	}
-
-	redrawState();
-	jumpTo(rv.lineno);
 }
-function getBreakpoints() {
+
+function getBreakpoints(forCompiler) {
 	var bp = [];
+	var c = forCompiler?1:0;
 	editor.eachLine(function (l) {
 		if(isBreakpointOnLine(l)) {
-			bp.push(l.lineNo());
+			bp.push(l.lineNo() + c);
 		}
 	});	
 	return bp;
