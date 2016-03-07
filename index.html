@@ -1,0 +1,245 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Abacus Machine</title>
+  <meta name="description" content="Abacus Machine Simulator">
+  <meta name="author" content="Gaurav Manek">
+
+  <link href='https://fonts.googleapis.com/css?family=Merriweather:700|Source+Sans+Pro|Inconsolata' rel='stylesheet' type='text/css' />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/codemirror.min.css" />
+  <link rel="stylesheet" href="style.css?v=1.0" />
+  <!--[if lt IE 9]>
+  <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+</head>
+
+<body onload="start()">
+  <div id="header" contentrole="header">
+    <h1>Abacus Machine Simulator</h1>
+    <div class="links">
+      <small><a href="https://github.com/gauravmm/AbacusMachineSim/issues">Found a Bug?</a></small>
+      <small><a href="https://github.com/gauravmm/AbacusMachineSim">Code on Github</a></small>
+    </div>
+    <div class="attribution">
+      <small><a href="http://www.gauravmanek.com">Gaurav Manek</a></small>
+    </div>
+  </div>
+
+  <div id="contentRoot" class="container">
+    <div class="stateArea">
+      <div id="defaultView">
+        <div id="instructions">
+          <h3>Instructions</h3>
+          <p>Enter code in the right pane. Click on the status bar or hit <span class="kbrdShort">Ctrl + Enter</span> to compile the code and run tests automatically.</p>
+          <p>If your code compiles correctly, these instructions will be replaced by an debugging window where you can set breakpoints, run functions, and step through execution of your code. (This is available even if some of your tests fail.)</p>
+          <p>Tests are built into the language to encourage good testing practices. Each time you compile your code, the tests you define are run against it.
+          A <span class="codeSnippet">where</span> block at the end of a function contains tests like <span class="codeSnippet">name(1, 2, 3) is 2, 3</span>. The left-hand side must be a function call and the right-hand side can be a list of integers or another function call. </p>
+          <p>For additional documentation, refer to the <a href="https://github.com/gauravmm/AbacusMachineSim/blob/gh-pages/README.md">README</a>.</p>
+        </div>
+      </div>
+      <div id="runningView" style="display: none;">
+        <div id="toolbar">
+          <div class="toolbarRow toolbarSmallGap">
+            <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
+            <span class="btn" onclick="loadAndPause()" tooltip="Load and Pause">&#10073;&#10073;</span>
+            <span class="btn" onclick="loadAndRun()" tooltip="Load and Run">&#9654;</span>
+          </div>
+          <div class="toolbarRow showWhenRunning">
+            <span class="btn" onclick="runToEnd()" tooltip="Run to End (Ctrl+E)">&#x21e5;</span>
+            <span class="btn" onclick="stepOver()" tooltip="Step Over (Ctrl+,)">&#x21b7;</span>
+            <span class="btn" onclick="stepInto()" tooltip="Step In (Ctrl+.)">&#x21b4;</span>
+            <span class="btn" onclick="stepOut()" tooltip="Step Out (Ctrl+/)">&#x21b1;</span>
+          </div>
+        </div>
+        <div id="registers"></div>
+        <div class="viewDivider"></div>
+        <div id="stack"></div>
+      </div>
+    </div>
+    <div class="inputArea" class="inputDirty">
+      <div id="runtimeOut" class="runtimeReady">Click here or hit Ctrl+Enter to build and test.</div>
+      <div class="codeWrapper"><textarea id="codeArea">
+/* Sample code
+ * 
+ * Here are some sample functions with tests,
+ * to help you get started with this.
+ * 
+ * For a challenge, try implementing primality
+ * testing, Cantor's zig-zag function. For a 
+ * really fun challenge, try implementing Diffie-
+ * Hellman.
+ */
+
+function div([dividend], [divisor]) -> [quo], [rem] {
+  cpy([dividend]) -> [rem];
+  
+  :start
+  // Subtract divisor from dividend
+  sub2([dividend], [divisor]) -> [dividend], [neg];
+  // If the dividend is still positive, then we 
+  // still have more to subtract. We add one to
+  // the quotient, and subtract the quotient from
+  // the remainder.
+  [dividend]-,next,:exitLoop;
+  [dividend]+;
+  [quo]+;
+  sub([rem], [divisor]) -> [rem];
+  goto :start;
+  
+  :exitLoop
+  // When we get here, we need to check if [neg] is 
+  // zero. If it is, then the final subtraction operation
+  // yielded a zero, then [dividend] evenly divides [divisor]
+  // In that case, we set [rem] to zero, and increment [quo]
+  [neg]-,:end,next;
+  cpy(0) -> [rem];
+  [quo]+;
+  
+  :end
+} where {
+  div(2, 1) is 2, 0;
+  div(15, 4) is 3, 3;
+  div(81, 10) is 8, 1;
+  div(21, 7) is 3, 0;
+  div(31, 5) is 6, 1;
+}
+
+function pow([1], [2]) -> [retval] {
+  cpy(1) -> [retval];
+  :start
+  [2]-,next,:end;
+  mult([retval], [1]) -> [retval];
+  goto :start;
+  :end
+} where {
+  pow(1, 0) is 1;
+  pow(7, 0) is 1;
+  pow(7, 1) is 7;
+  pow(7, 2) is 49;
+  pow(7, 3) is 343;
+  pow(7, 4) is 2401;
+}
+
+function mult([1], [2]) -> [retval] {
+  :start
+  [2]-,next,:end;
+  sum([retval], [1]) -> [retval];
+  goto :start;
+  :end
+} where {
+  mult(0, 0) is 0;
+  mult(8, 0) is 0;
+  mult(0, 4) is 0;
+  mult(6, 6) is 36;
+}
+
+// Subtraction with positive and negative parts:
+function sub2([1], [2]) -> [1], [2] {
+  // Check for [1] being zero.
+  [1]-,next,:end;
+  [1]+;
+  // Check for [2] being zero.
+  [2]-,next,:end;
+  [2]+;
+  
+  :startLoop
+  [2]-,next,:end;
+  // Here we compensate for the extra number
+  // removed from [2] by passing control flow
+  // to :endAdd2 instead of :end.
+  [1]-,:startLoop,:endAdd2; 
+  goto :end;
+  
+  // We increment [2] to offset the extra removed
+  // from it in the first loop line.
+  :endAdd2
+  [2]+;
+  
+  :end
+} where {
+  sub2(0, 0) is 0, 0;
+  sub2(2, 0) is 2, 0;
+  sub2(0, 2) is 0, 2;
+  sub2(4, 4) is 0, 0;
+  sub2(8, 3) is 5, 0;
+  sub2(3, 8) is 0, 5;
+  sub2(10, 2) is 8, 0;
+  sub2(2, 12) is 0, 10;
+}
+
+
+function sub([1], [2]) -> [1] {
+  [2]-,next,:end;
+  [1]-,next,next;
+  :startLoop
+  [2]-,next,:end;
+  [1]-,:startLoop,next;
+  :end
+} where {
+  sub(0, 0) is 0;
+  sub(1, 0) is 1;
+  sub(4, 4) is 0;
+  sub(8, 3) is 5;
+  sub(10, 2) is 8;
+  sub(2, 12) is 0;
+}
+
+function sum([1], [2]) -> [1] {
+  :start
+  // Remember, registers branch based on the value
+  // before decrementing, not after. We do things in
+  // this order because it makes it possible to handle
+  // zeros.
+  [2]-,next,:end;
+  [1]+,:start;
+  :end
+} where {
+  sum(0, 0) is 0;
+  sum(11, 0) is 11;
+  sum(11, 1) is 12;
+  sum(2, 5) is 7;
+}
+
+function signum([1]) -> [2] {
+  [1]-,:ifpos,:ifzero;
+  :ifpos
+  [2]+;
+  :ifzero
+} where {
+  signum(0) is 0;
+  signum(1) is 1;
+  signum(8) is 1;
+}
+
+function cpy([1]) -> [1] {
+  // Do nothing.
+} where {
+  cpy(0) is 0;
+  cpy(7) is 7;
+}
+</textarea>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/codemirror.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/addon/mode/simple.min.js"></script>
+<script type="text/javascript" src="compat.js"></script>
+<script type="text/javascript" src="cmsyntax.js"></script>
+<script type="text/javascript" src="parser.js"></script>
+<script type="text/javascript" src="machine.js"></script>
+<script type="text/javascript" src="script.js"></script>
+
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+ga('create', 'UA-20172505-3', 'auto');
+ga('send', 'pageview');
+</script>
+</body>
+</html>
