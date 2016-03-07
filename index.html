@@ -44,7 +44,7 @@
         <div id="toolbar">
           <div class="toolbarRow toolbarSmallGap">
             <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
-            <span class="btn" onclick="loadAndPause()" tooltip="Load and Pause">&#9654;&#9646;</span>
+            <span class="btn" onclick="loadAndPause()" tooltip="Load and Pause">&#10073;&#10073;</span>
             <span class="btn" onclick="loadAndRun()" tooltip="Load and Run">&#9654;</span>
           </div>
           <div class="toolbarRow showWhenRunning">
@@ -95,13 +95,14 @@ function b([1]) -> [1] {
   b(7) is 8;
   b(6) is 7;
 }
-</textarea></div>
+</textarea>
     </div>
   </div>
 </div>
 
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/codemirror.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.12.0/addon/mode/simple.min.js"></script>
+<script type="text/javascript" src="compat.js"></script>
 <script type="text/javascript" src="cmsyntax.js"></script>
 <script type="text/javascript" src="parser.js"></script>
 <script type="text/javascript" src="machine.js"></script>

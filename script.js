@@ -281,13 +281,16 @@ function handleChange() {
 }
 
 function saveState() {
-	localStorage.setItem("CodeString", editor.getValue());
+	if(localStorage)
+		localStorage.setItem("CodeString", editor.getValue());
 }
 
 function loadState() {
-	var cs = localStorage.getItem("CodeString");
-	if(cs) {
-		editor.setValue(cs);
+	if(localStorage) {
+		var cs = localStorage.getItem("CodeString");
+		if(cs) {
+			editor.setValue(cs);
+		}
 	}
 }
 
