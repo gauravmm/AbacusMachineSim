@@ -61,6 +61,6 @@ In actual abacus machines the function abstraction does not exist, and functions
 
 ### Testing
 
-Tests are built into the language to encourage good testing practices. A `where` block at the end of a function contains tests of the form `name(1, 2, 3) is 2, 3` or `name(1, 2) is name(4, 5)`. The left-hand-side must be a function call and the right hand side can be a list of integers or another function call. The `is` operator is checks for equality: a test is only considered passed if the output of the function on the left and right (or the values on the right) are of equal length and value.
+Tests are built into the language to encourage good testing practices. A `where` block at the end of a function contains tests of the form `name(1, 2, 3) is 2, 3` or `name(1, 2) is name(4, 5)`. The left-hand side must be a function call and the right-hand side can be a list of integers or another function call. The `is` operator is checks for equality: a test is only considered passed if the output of the function on the left and right (or the values on the right) are of equal length and value.
 
 Function tests are automatically run in *dependency order*, where function `a` is evaluated before `b` is `b` depends on `a`. Testing may be stopped early if any test fails.
