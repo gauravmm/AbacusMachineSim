@@ -40,6 +40,7 @@ function start(){
 
   	$('runtimeOut').onclick = compileAndTest;
   	document.onkeyup = handleKeyboardShortcuts;
+  	$('funcCall').onkeyup = handleDebuggerKeys;
 
   	loadState();
 };
@@ -211,6 +212,16 @@ function stepOut() {
 }
 function stepOver() {
 	runnerStep(MACHINE_CONSTANTS.DBG_STEP_OVER);
+}
+
+function handleDebuggerKeys(e){	
+	if(e.keyCode == 13){
+		if(e.shiftKey) {
+			loadAndRun();
+		} else {
+			loadAndPause();
+		}
+	}
 }
 
 function handleGutterClick(cm, n) {
@@ -388,7 +399,7 @@ function handleKeyboardShortcuts(e) {
     stepInto();
   } else if(e.ctrlKey && e.keyCode == 191) { // "Ctrl+/"
     stepOut();
-  } else if(e.ctrlKey && e.keyCode ==  69) { // "Ctrl+e"
+  } else if(e.ctrlKey && e.keyCode ==  77) { // "Ctrl+m"
   	runToEnd();
   } else if(e.ctrlKey && e.keyCode ==  13) { // "Ctrl+Enter"
   	compileAndTest();
