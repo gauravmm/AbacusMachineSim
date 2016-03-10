@@ -375,7 +375,7 @@ var Compiler = (function() {
 		// Copy and filter.
 		var execs = fn.exec;
 		fn.exec = execs.filter((v, i) => reach[i]);
-		var unr = execs.filter((v, i) => !reach[i]);
+		var unr = execs.map((f) => f.lineno).filter((v, i) => !reach[i]);
 
 		return { code: fn, unreachable: unr };
 	}
