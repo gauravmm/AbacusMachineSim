@@ -407,10 +407,10 @@ a:hover {
 .lintBreakpoint.inputDirty {
 	color: #229;
 }
-.testResult {
+.gutterFlag {
 	border-radius: 3px;
 }
-.testResult[tt]::after {
+.gutterFlag[tt]::after {
     content: attr(tt);
     position: absolute;
     pointer-events: none;
@@ -422,7 +422,7 @@ a:hover {
     width: 200px;
     background: inherit;
 }
-.testResult[tt]:hover::after {
+.gutterFlag[tt]:hover::after {
 	opacity: 1;
 }
 .testSuccess {
@@ -430,4 +430,7 @@ a:hover {
 }
 .testFailed {
 	background: #F45D4C;
+}
+.unreachableFlag {
+	background: #FC9731;
 }

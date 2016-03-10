@@ -71,7 +71,7 @@ function compileAndTest() {
 		// compiled is a list of {code, tests} objects,
 		// where code is the "compiled" version of each function
 		// and tests is the set of tests associated with that function.
-		var compiled = parse.map(Compiler.compile);
+		var compiled = parse.map(p => Compiler.compile(p, { prune: true }));
 		var tests = TestEngine(compiled);
 		// All the functions
 		var allfunc = compiled.map(function(v) { return v.code; });
@@ -79,7 +79,7 @@ function compileAndTest() {
 		// End timer.
 		// var t_end = performance.now();
 		onCompile(allfunc);
-
+		handleUnreachableLines(compiled);
 		clearTimeout(testTimer);
 		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 	} catch (err) {
@@ -320,9 +320,11 @@ function loadState() {
 	}
 }
 
+
 // 
 // Compiler/Runner interaction
 //
+
 function loadFunction(funstr) {
 	if(!compiled) {
 		error("Compile your code before running a function!");
@@ -387,6 +389,11 @@ function getBreakpoints(forCompiler) {
 	});	
 	return bp;
 }
+
+function handleUnreachableLines(cmp) {
+	cmp.forEach(v => v.unreachable.forEach(setUnreachableGutter));
+}
+
 
 //
 // Keyboard Interaction
@@ -459,9 +466,19 @@ function success(str) {
 	}
 }
 
+
 //
 // UI Drawing Functions
 //
+
+function setUnreachableGutter(l) {
+	var marker = document.createElement("div");
+	marker.innerHTML = "&nbsp;";
+	marker.setAttribute("tt", "This line is unreachable.");
+	marker.className = "gutterFlag unreachableFlag";
+	
+	editor.setGutterMarker(l - 1, "lint", marker);
+}
 
 function isBreakpointOnLine(l) {
 	return l.gutterMarkers && l.gutterMarkers.lint && l.gutterMarkers.lint.getAttribute("isbreakpoint");
@@ -481,7 +498,7 @@ function setTestGutter(line, passed, tooltip) {
 	var marker = document.createElement("div");
 	marker.innerHTML = "&nbsp;";
 	marker.setAttribute("tt", tooltip);
-	marker.className = "testResult " + (passed?"testSuccess":"testFailed");
+	marker.className = "gutterFlag " + (passed?"testSuccess":"testFailed");
 	
 	editor.setGutterMarker(line, "lint", marker);
 }
