@@ -56,15 +56,17 @@ var Compiler = (function() {
 
 	// Takes a function specification, spits out the version in an intermediate form that the machine
 	// can directly use.
-	function abacm$compile(fn) {
+	function abacm$compile(fn, opts) {
 		// Compiled form
 		var rv = {
+			frst: 0,  // The first instruction in the function.
 			name: fn.name,
 			args: [], // The register to put the args into.
 			rets: [], // The registers to return.
 			deps: [], // Dependencies
 			regs: [], // Registers
 			exec: [], // Code to execute
+			opts: opts,
 			lineno: fn.lineno
 		}
 		var anchors = {}; // Anchor positions
@@ -210,6 +212,10 @@ var Compiler = (function() {
 			}
 		}
 
+		return rv;
+	}
+
+	function abacm$compileTests(fn) {
 		// Tests 
 		var tests = [];
 
@@ -269,14 +275,140 @@ var Compiler = (function() {
 			});
 		}
 
-		return {
-			code: rv,
-			tests: tests
-		};
+		return tests;
 	}
 
+	function abacm$resolveGotos(fn, opts) {
+		// Change all pointers to gotos to point to the goto target (i.e. "through" the goto.)
+		// If an infinite loop is detected, this will throw an exception.
+		// This does not remove the gotos themselves, that happens in a later function.
+
+		function resolve(i, trace) {
+			if(!trace) 
+				trace = RepetitionDetector();
+
+			if(trace.push(i))
+				abacm$except("Infinite GOTO loop detected in function " + fn.name + ".", fn.exec[i].lineno);
+
+			// Now we look at the instruction at i
+			if(fn.exec[i].type == MACHINE_CONSTANTS.CODE_TYPE_GOTO) {
+				// Okay, we have yet to find the ultimate target of 
+				// the goto chain. We return the result of resolving 
+				// the next goto along the chain, and replace the 
+				// current goto's next parameter to reduce future
+				// computation cost.
+
+				var tgt = resolve(fn.exec[i].next, trace);
+				fn.exec[i].next = tgt;
+				return tgt;
+			} else {
+				// Oh, good, we found a non-goto instruction.
+				// We return this index as the resolved index:
+				return i;
+			} 
+		}
+
+		fn.frst = resolve(fn.frst);
+		abacm$mapnexts(fn, resolve);
+
+		return fn;
+	}
+
+	function abacm$mapnexts(fn, mapper) {
+		for (var i = 0; i < fn.exec.length; i++) {
+			if(fn.exec[i].type != MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+				if(fn.exec[i].hasOwnProperty("next")) {
+					fn.exec[i].next = mapper(fn.exec[i].next);
+				} else {
+					fn.exec[i].next_pos = mapper(fn.exec[i].next_pos);
+					fn.exec[i].next_zero = mapper(fn.exec[i].next_zero);
+				}
+			}
+		}		
+	}
+
+
+	function abacm$prune(fn, opts) {
+		// We prune all lines that are not reachable, in any case,
+		// from the input.
+		// Eventually, we may support the pruning of registers 
+		// that are only present on unreachable lines. 
+		var reach = fn.exec.map((v, i) => false);
+
+		var stack = [fn.frst];
+
+		while(stack.length > 0) {
+			var i = stack.pop();
+
+			// If I has yet to be marked as reachable:
+			if(!reach[i]) {
+				reach[i] = true;
+				// If it's not a return instruction, add its nexts to
+				// the stack.
+				if(fn.exec[i].type != MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+					if(fn.exec[i].hasOwnProperty("next")) {
+						stack.push(fn.exec[i].next);
+					} else {
+						stack.push(fn.exec[i].next_pos);
+						stack.push(fn.exec[i].next_zero);
+					}
+				}
+			}
+		}
+
+		// Now we use the reachability list to make a list of destination
+		// indices for each element.
+		var indices = [];
+		for (var i = 0, j = 0; i < reach.length; ++i) {
+			indices[i] = j;
+
+			// If i is reachable, then the next reachable
+			// index must be assigned the next available
+			// number.
+			if(reach[i])
+				j++;
+		}
+
+		// Now we actually rewrite the actual targets of each jump.
+		abacm$mapnexts(fn, (i) => indices[i]);
+
+		// Copy and filter.
+		var execs = fn.exec;
+		fn.exec = execs.filter((v, i) => reach[i]);
+		var unr = execs.filter((v, i) => !reach[i]);
+
+		return { code: fn, unreachable: unr };
+	}
+
+
+	function abacm$compilerManager(fn, opts) {
+		if(!opts)
+			opts = {};
+
+		// Perform basic compilation:
+		var rv = {
+			code: abacm$compile(fn, opts),
+			tests: abacm$compileTests(fn, opts)
+		};
+
+		if(opts.resolveGotos) {
+			rv.code = abacm$resolveGotos(rv.code, opts);
+			if(!opts.hasOwnProperty("prune"))
+				opts.prune = true;
+		}
+
+		if(opts.prune) {
+			var tmp = abacm$prune(rv.code, opts);
+			rv.code = tmp.code;
+			rv.unreachable = tmp.unreachable;
+		}
+
+		return rv;
+	}
+
+
 	return {
-		compile: abacm$compile,
+		compile: abacm$compilerManager,
 		CompilerException: CompilerException
 	};
 })();
@@ -302,7 +434,7 @@ function RepetitionDetector() {
 			return [];
 		}
 		// Note use of slice, not s_p_lice, here:
-		return loop.slice(startpos, loop.length);
+		return [1, 2,3];//loop.slice(startpos, loop.length).concat([id]);
 	}
 
 	function repdec$pop() {
