@@ -92,6 +92,12 @@ Before code is compiled, breakpoints are set in a blue color and may be set at a
 
 Breakpoints set at a function header will stop execution just before a function returns. Breakpoints set within a function will stop execution so that the highlighted line is the next to be executed.
 
+### Static & Dynamic Analysis
+
+At compile-time some static analysis is automatically performed, and the compiler reports functions where the exit is unreachable, infinite `goto` loops, and unreachable lines.
+
+At runtime further analysis is performed, including recursion detection and branch-free loops.
+
 
 ## Open Source
 
