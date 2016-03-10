@@ -79,7 +79,7 @@ function compileAndTest() {
 		// End timer.
 		// var t_end = performance.now();
 		onCompile(allfunc);
-		handleUnreachableLines(compiled.map(p => p.unreachable));
+		handleUnreachableLines(compiled);
 		clearTimeout(testTimer);
 		testTimer = setTimeout(nextTest, TEST_DELAY, tests);
 	} catch (err) {
@@ -320,9 +320,11 @@ function loadState() {
 	}
 }
 
+
 // 
 // Compiler/Runner interaction
 //
+
 function loadFunction(funstr) {
 	if(!compiled) {
 		error("Compile your code before running a function!");
@@ -387,6 +389,11 @@ function getBreakpoints(forCompiler) {
 	});	
 	return bp;
 }
+
+function handleUnreachableLines(cmp) {
+	cmp.forEach(v => v.unreachable.forEach(setUnreachableGutter));
+}
+
 
 //
 // Keyboard Interaction
@@ -459,19 +466,18 @@ function success(str) {
 	}
 }
 
+
 //
 // UI Drawing Functions
 //
 
-function handleUnreachableLines(u) {
-	u.forEach(v => v.forEach(function(l) {
-			var marker = document.createElement("div");
-			marker.innerHTML = "&nbsp;";
-			marker.setAttribute("tt", "This line is unreachable.");
-			marker.className = "gutterFlag unreachableFlag";
-			
-			editor.setGutterMarker(l - 1, "lint", marker);
-		}));
+function setUnreachableGutter(l) {
+	var marker = document.createElement("div");
+	marker.innerHTML = "&nbsp;";
+	marker.setAttribute("tt", "This line is unreachable.");
+	marker.className = "gutterFlag unreachableFlag";
+	
+	editor.setGutterMarker(l - 1, "lint", marker);
 }
 
 function isBreakpointOnLine(l) {

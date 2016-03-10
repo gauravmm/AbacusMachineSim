@@ -356,6 +356,12 @@ var Compiler = (function() {
 			}
 		}
 
+		// If the return instruction cannot be reached, then we throw an exception.
+		// This should be considered a fatal error.
+		if(!reach[reach.length - 1]) {
+			abacm$except("This function never exits.", fn.lineno);
+		}
+
 		// Now we use the reachability list to make a list of destination
 		// indices for each element.
 		var indices = [];
@@ -376,6 +382,8 @@ var Compiler = (function() {
 		var execs = fn.exec;
 		fn.exec = execs.filter((v, i) => reach[i]);
 		var unr = execs.map((f) => f.lineno).filter((v, i) => !reach[i]);
+		// There's no need to filter out the return instruction here because
+		// if it is inaccessible, that makes this a fatal error.
 
 		return { code: fn, unreachable: unr };
 	}
