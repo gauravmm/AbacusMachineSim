@@ -283,6 +283,7 @@ var Compiler = (function() {
 		// If an infinite loop is detected, this will throw an exception.
 		// This does not remove the gotos themselves, that happens in a later function.
 
+		fn.opts.resolveGotos = true;
 		function resolve(i, trace) {
 			if(!trace) 
 				trace = RepetitionDetector();
@@ -333,6 +334,8 @@ var Compiler = (function() {
 		// from the input.
 		// Eventually, we may support the pruning of registers 
 		// that are only present on unreachable lines. 
+		fn.opts.prune = true;
+
 		var reach = fn.exec.map((v, i) => false);
 
 		var stack = [fn.frst];
