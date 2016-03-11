@@ -1048,7 +1048,7 @@ var Linker = (function(){
 	function lnkr$find(allfunc, target){
 		var rf = allfunc.find((t) => t.name == target);
 		if(!rf) {
-			lnkr$except("Cannot find function " + target);
+			lnkr$except("Cannot find function \"" + target + "\"");
 		}
 		return rf;
 	}
