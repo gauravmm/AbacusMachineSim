@@ -96,6 +96,9 @@ function compileAndTest() {
 
 // Runs one test, then schedules the running of future tests.
 function nextTest(tests) {
+	// Testing was cancelled. Fail silently.
+	if (!compiled)
+		return;
 	
 	function runTestSide(fcall, t){
 		var rr = MachineRunner(compiled, fcall, {});
@@ -193,6 +196,8 @@ function compileAndLink(funstr) {
 		success("Compiled and linked in " + Math.round(t_end-t_start) + " ms.");
 
 		console.log(linked);
+		console.log(PPCode.prettyFunction(linked));
+		editor.setValue(PPCode.prettyFunction(linked) + "\n\n\n" + editor.getValue());
 	} catch (err) {
 		onCompile(null);
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException || err instanceof Linker.LinkerException || (err.name && err.name == "SyntaxError")) {

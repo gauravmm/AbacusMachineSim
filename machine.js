@@ -1153,6 +1153,7 @@ var Linker = (function(){
 		var registerMapping  = []; // Map from (scope, local register) to global register.
 		var regs = [];
 		startingRegister.push(1); // We need a temporary copying register somewhere here.
+		registerMapping.push(0);
 
 		// Convenience functions:
 		var getReg = (scope, i) => registerMapping[startingRegister[scope] + i];
@@ -1349,8 +1350,8 @@ var Linker = (function(){
 		return {
 			"frst": srcF.frst,
 			"name": srcF.name + "_compiled",
-			"args": srcF.args,
-			"rets": srcF.rets,
+			"args": srcF.args.map((r) => r + startingRegister[0]),
+			"rets": srcF.rets.map((r) => r + startingRegister[0]),
 			"deps": [],
 			"regs": regs,
 			"exec": exec,
