@@ -291,7 +291,7 @@ a:hover {
 	flex: 1 1 auto;
 }
 .toolbarRow>#funcCall {
-	width: 80%;
+	width: 60%;
 }
 .toolbarRow>input {
 	border: none;

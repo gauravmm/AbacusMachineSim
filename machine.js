@@ -283,6 +283,7 @@ var Compiler = (function() {
 		// If an infinite loop is detected, this will throw an exception.
 		// This does not remove the gotos themselves, that happens in a later function.
 
+		fn.opts.resolveGotos = true;
 		function resolve(i, trace) {
 			if(!trace) 
 				trace = RepetitionDetector();
@@ -333,6 +334,8 @@ var Compiler = (function() {
 		// from the input.
 		// Eventually, we may support the pruning of registers 
 		// that are only present on unreachable lines. 
+		fn.opts.prune = true;
+
 		var reach = fn.exec.map((v, i) => false);
 
 		var stack = [fn.frst];
@@ -416,6 +419,8 @@ var Compiler = (function() {
 
 
 	return {
+		resolveGotos: abacm$resolveGotos,
+		prune: abacm$prune,
 		compile: abacm$compilerManager,
 		CompilerException: CompilerException
 	};
@@ -1024,3 +1029,339 @@ function TestEngine(__compiledOutput, _listener) {
 		passed: tests$passed
 	}
 }
+
+
+var Linker = (function(){
+	"use strict"
+
+	var REGISTER_TMP_COPY = 0;
+
+	function LinkerException(message, lineno){
+		this.message = message;
+		this.lineno = lineno;
+	}
+
+	function lnkr$except(text, location){
+		throw new LinkerException(text, location);
+	}
+
+	function lnkr$find(allfunc, target){
+		var rf = allfunc.find((t) => t.name == target);
+		if(!rf) {
+			lnkr$except("Cannot find function " + target);
+		}
+		return rf;
+	}
+
+	// Copy from global register rF to global register rT,
+	// assumes rT is zero.
+	function lnkr$makePreambleCopy(rF, rT, first){
+		var r0 = REGISTER_TMP_COPY;
+		var rv = [
+			{ "type":1, "register":rF, "increment":false, "next_pos":1, "next_zero":6 },
+			{ "type":1, "register":rT, "increment":true,  "next":2 },
+			{ "type":1, "register":r0, "increment":true,  "next":3 },
+			{ "type":1, "register":rF, "increment":false, "next_pos":1, "next_zero":4 },
+			{ "type":1, "register":r0, "increment":false, "next_pos":5, "next_zero":6 },
+			{ "type":1, "register":rF, "increment":true,  "next":4 }];
+		return lnkr$makePreambleWrapper(rv, first);
+	}
+
+	// Zeros rZ.
+	function lnkr$makePreambleZero(rZ, first){
+		var rv = [ { "type":1, "register":rZ, "increment":false, "next_pos":0, "next_zero":1 } ];
+		return lnkr$makePreambleWrapper(rv, first);
+	}
+
+	// Sets rZ to value v.
+	function lnkr$makePreambleValue(rZ, v, first){
+		var rv = [];
+		var i = 0;
+		while(i < v)
+			rv.push({ "type":1, "register":rZ, "increment":true, "next":++i });
+
+		return lnkr$makePreambleWrapper(rv, first);
+	}
+
+	function lnkr$makePreambleWrapper(l, first) {
+		var idx = l.map((v, i) => lnkr$lazyIndex(-1, i + 1));
+		
+		idx.unshift(first); // Temporarily add the exit pointer to idx
+
+		// Switch all nexts from numbers to lazy indices.
+		for(var i = 0; i < l.length; ++i) {
+			if(l[i].hasOwnProperty("next")) {
+				l[i].next = idx[l[i].next];
+			} else {
+				l[i].next_pos = idx[l[i].next_pos];
+				l[i].next_zero = idx[l[i].next_zero];
+			}
+		}
+
+		var next = idx.pop();
+
+		// Sanity checks
+		if(l.length != idx.length)
+			lnkr$except("Wrapper broke invariant that exec and jump are of same length.");
+		if(!next)
+			lnkr$except("Wrapper returning null lazyIndex.");
+				
+
+		return { exec: l, jump: idx, next: next };
+	}
+
+	function lnkr$makeGoto(dest) {
+		return {
+			type: MACHINE_CONSTANTS.CODE_TYPE_GOTO,
+			next: dest
+		};
+	}
+
+	function lnkr$deepCopyCode(obj) {
+		var temp = {};
+		for (var key in obj) {
+			if (Object.prototype.hasOwnProperty.call(obj, key)) {
+				if(Array.isArray(obj[key])) {
+					temp[key] = obj[key].slice(0);
+				} else {
+					temp[key] = obj[key];
+				}
+			}
+		}
+		return temp;
+	}
+
+	// Lazily evaluated index object. Used to 
+	// stand in for an actual index until the flattening is done.
+	function lnkr$lazyIndex(sc, i) {
+		return { sc: sc, i: i, pos: -1 };
+	}
+
+	// Convert an entire execution tree into a single function.
+	//    allfunc: an array of functions,
+	//     target: the name of the function to compile, and
+	//       opts: extra options.
+	//
+	// Note that we do not perform any cleaning operations here, so it is important to
+	// run `goto` resolution and pruning after this.
+	function lnkr$link(allfunc, target, opts) {
+		// Oh, good. Now we have the starting function. Now we prepare scope resolution. A "scope" corresponds
+		// to the position of a function call in the final, linked, function and the registers assigned to it.
+		var nextScope = 0; 	// The next scope id.
+
+		var startingRegister = []; // The index of the first register of the original function in a scope.
+		var registerMapping  = []; // Map from (scope, local register) to global register.
+		var regs = [];
+		startingRegister.push(1); // We need a temporary copying register somewhere here.
+		registerMapping.push(0);
+
+		// Convenience functions:
+		var getReg = (scope, i) => registerMapping[startingRegister[scope] + i];
+		var setReg = (scope, i, k) => registerMapping[startingRegister[scope] + i] = k;
+
+		// Function Calling Convention:
+		// Each function has a preamble that copies data from an input register in the caller's scope to 
+		// the appropriate register in the callee's scope, and zeros out registers in the caller's scope
+		// that are to be written to. If a register is both in the caller's and callee's scope, then we
+		// leave it alone.
+		function flattenFunctionCode(fname, next, input_registers, output_registers, return_target) {
+			var scope = nextScope++; // Get the next scope id for this function.
+			var fn = lnkr$find(allfunc, fname); // Find the compiled function data.
+
+			var pend = fn.exec.map(lnkr$deepCopyCode); // Commands to be processed, deep copied.
+			var idxs = fn.exec.map((v, j) => lnkr$lazyIndex(scope, j)); // Prepare the lazy indexing object array.
+
+			var exec = []; // The final sequence of exec[] commands associated with this.
+			var jump = []; // The lazyIndex object associated with each line.
+
+			// Allocate all the registers we need in this scope, and tell the next scope
+			// where it can start allocating registers.
+			fn.regs.forEach(function (v, j) {
+				registerMapping.push(startingRegister[scope] + j);
+				regs.push(scope + "_" + fn.name + "_" + fn.regs[j]);
+			});
+			startingRegister.push(startingRegister[scope] + fn.regs.length);
+
+			// next is the entrypoint into the function. If it is not given, then this must be the 
+			// root function call. In that case, we use the first instruction's index as the entrypoint.
+			if(!next) {
+				next = idxs[fn.frst];
+			} else {
+				// This is not the root function call. We need to massage the registers a little.
+				if(!Array.isArray(input_registers) || !Array.isArray(output_registers)) 
+					lnkr$except("Non-root function call without preamble data.", fn.lineno);
+				
+				if(input_registers.length != fn.args.length || output_registers.length != fn.rets.length)
+					lnkr$except("Incorrect input or output register length.", fn.lineno);	
+				
+				// Function preamble
+				// Here's the tricky part: we need to map input_registers to fn.args and 
+				// fn.rets to output_registers.
+				// Here are the rules for that mapping:
+				//   (1) Remap and erase output registers.
+				//      (a) We set registerMapping[(scope, fn.rets[j])] = output_registers[j] for all
+				//          output registers. (This corresponds to setting the output location.)
+				//      (b) All output_registers that ARE NOT also input_registers are zeroed
+				//          using lnkr$makePreambleZero. (Zero returning registers.)
+				//   (2) Copy various input registers.
+				//      (a) If an input_register is also an output_register, we ignore it. It has been 
+				//          dealt with in (1)(a).
+				//      (b) If an input_register is non-negative, we use lnkr$makePreambleCopy to copy
+				//          the value from input_register[j] to rn.args[j]. (Pass-by-value support.)
+				//		(c) If an input_register is negative, we use lnkr$makePreambleValue to store
+				//          the corresponding value in the corresponding register in fn.args. (Integer 
+				//          constants support.)
+				//
+				// The result of all this preamble code will be to emulate the function abstractions of
+				// passing by value to and from a function.
+				//
+				// Also, next is the index to which control will be passed. We use that as the first index of 
+				// each part of the preamble and overwrite it with the returned rv.next index.
+				// 
+				// Don't worry, this will not be on the final. :)
+
+				output_registers.forEach(function (r, j) {
+					// (a)
+					setReg(scope, fn.rets[j], r);
+
+					// (b)
+					if(input_registers.indexOf(r) < 0) {
+						var c = lnkr$makePreambleZero(r, next);
+						exec = exec.concat(c.exec);
+						jump = jump.concat(c.jump);
+						next = c.next;
+					}
+				});
+
+				// (2)
+				input_registers.forEach(function (r, j) {
+					if(output_registers.indexOf(r) >= 0) {
+						// (a)
+					} else {
+						var c;
+						if (r >= 0) {
+							// (b)
+							c = lnkr$makePreambleCopy(r, getReg(scope, fn.args[j]), next);
+						} else {
+							// (c)
+							c = lnkr$makePreambleValue(getReg(scope, fn.args[j]), DECODE_INTEGER(r), next);
+						}
+						exec = exec.concat(c.exec);
+						jump = jump.concat(c.jump);
+						next = c.next;
+					}
+				});
+			}
+
+			// next is the entrypoint into the function, so we set the first instruction in the function
+			// to next.
+			idxs[fn.frst] = next;
+
+			for(var i=0; i<pend.length; ++i) {
+				if(pend[i].type == MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+					// Oh, goody! We're done processing this function.
+					// If there is a return target to jump to after this function,
+					// then we put a goto there. Otherwise we leave the return function in.
+					if(return_target) {
+						exec.push(lnkr$makeGoto(return_target));
+					} else {
+						exec.push(pend[i]); // We copy in the return function.
+					}
+					jump.push(idxs[i]);
+
+					// Sanity check.
+					// console.log(exec.length);
+					if(exec.length != jump.length) {
+						lnkr$except("Exec and Jump of different lengths.");
+					}
+
+					return { exec: exec, jump: jump };
+
+				} else {
+					// We swap out the next jumps for lazily evaluated indices,
+					// no matter what the type is.
+					if(pend[i].hasOwnProperty("next")) {
+						pend[i].next = idxs[pend[i].next];
+					} else {
+						pend[i].next_pos = idxs[pend[i].next_pos];
+						pend[i].next_zero = idxs[pend[i].next_zero];
+					}
+					
+					switch (pend[i].type) {
+						case MACHINE_CONSTANTS.CODE_TYPE_REGISTER:
+							// We're accessing a register here. We map the accessed register
+							// from the local to the global registers.
+							pend[i].register = getReg(scope, pend[i].register);
+							// Note: no break; here, we still need to add the line to the code.
+
+						case MACHINE_CONSTANTS.CODE_TYPE_GOTO:
+							// Add the current line to the code:
+							exec.push(pend[i]);
+							jump.push(idxs[i]);
+
+							break;
+
+						case MACHINE_CONSTANTS.CODE_TYPE_CALL:
+							// We need to map both the input and output registers,
+							// but leave the numbers unchanged. Numbers are stored as 
+							// negative values.
+							var r_in = pend[i].in.map((v) => (v >= 0?getReg(scope, v):v));
+							var r_out = pend[i].out.map((v) => (v >= 0?getReg(scope, v):v));
+
+							var sub = flattenFunctionCode(pend[i].fn, idxs[i], r_in, r_out, pend[i].next);
+							
+							exec = exec.concat(sub.exec);
+							jump = jump.concat(sub.jump);
+
+							break;
+
+						default:
+							lnkr$except("Unexpected type for compiled code.", fn.lineno);
+					}
+				}
+			}
+
+			// We've finished running over all indices without
+			// returning. This should not have happened.
+			lnkr$except("Function without return.", fn.lineno);
+		}
+		var srcF = lnkr$find(allfunc, target);
+		var rv = flattenFunctionCode(target);
+		var exec = rv.exec;
+		var line = rv.jump;
+
+		// Now we update the lazyIndices with the actual line number:
+		line.forEach((l, i) => l.pos = i);
+
+		// And we swap each lazyIndex with the position:
+		exec.forEach(function(e) {
+			if(e.type != MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+				if(e.hasOwnProperty("next")) {
+					e.next = e.next.pos;
+				} else {
+					e.next_pos = e.next_pos.pos;
+					e.next_zero = e.next_zero.pos;
+				}
+			}
+		});
+
+		// ...and we're done!
+
+		return {
+			"frst": srcF.frst,
+			"name": srcF.name + "_compiled",
+			"args": srcF.args.map((r) => r + startingRegister[0]),
+			"rets": srcF.rets.map((r) => r + startingRegister[0]),
+			"deps": [],
+			"regs": regs,
+			"exec": exec,
+			"opts": {"linked":true}
+		};
+	}
+
+	return {
+		LinkerException: LinkerException,
+		link: lnkr$link
+	};
+
+})();
