@@ -416,6 +416,8 @@ var Compiler = (function() {
 
 
 	return {
+		resolveGotos: abacm$resolveGotos,
+		prune: abacm$prune,
 		compile: abacm$compilerManager,
 		CompilerException: CompilerException
 	};
@@ -1031,13 +1033,13 @@ var Linker = (function(){
 
 	var REGISTER_TMP_COPY = 0;
 
-	function LinkerExcepion(message, lineno){
+	function LinkerException(message, lineno){
 		this.message = message;
 		this.lineno = lineno;
 	}
 
 	function lnkr$except(text, location){
-		throw new LinkerExcepion(text, location);
+		throw new LinkerException(text, location);
 	}
 
 	function lnkr$find(allfunc, target){
@@ -1064,7 +1066,7 @@ var Linker = (function(){
 
 	// Zeros rZ.
 	function lnkr$makePreambleZero(rZ, first){
-		var rv = [ { "type":1, "register":rZ, "increment":false, "next_pos":i, "next_zero":1 } ];
+		var rv = [ { "type":1, "register":rZ, "increment":false, "next_pos":0, "next_zero":1 } ];
 		return lnkr$makePreambleWrapper(rv, first);
 	}
 
@@ -1073,7 +1075,7 @@ var Linker = (function(){
 		var rv = [];
 		var i = 0;
 		while(i < v)
-			rv.push({ "type":1, "register":rZ, "increment":true, "next":i++ });
+			rv.push({ "type":1, "register":rZ, "increment":true, "next":++i });
 
 		return lnkr$makePreambleWrapper(rv, first);
 	}
@@ -1081,7 +1083,7 @@ var Linker = (function(){
 	function lnkr$makePreambleWrapper(l, first) {
 		var idx = l.map((v, i) => lnkr$lazyIndex(-1, i + 1));
 		
-		idx.unshift(next); // Temporarily add the exit pointer to idx
+		idx.unshift(first); // Temporarily add the exit pointer to idx
 
 		// Switch all nexts from numbers to lazy indices.
 		for(var i = 0; i < l.length; ++i) {
@@ -1095,6 +1097,13 @@ var Linker = (function(){
 
 		var next = idx.pop();
 
+		// Sanity checks
+		if(l.length != idx.length)
+			lnkr$except("Wrapper broke invariant that exec and jump are of same length.");
+		if(!next)
+			lnkr$except("Wrapper returning null lazyIndex.");
+				
+
 		return { exec: l, jump: idx, next: next };
 	}
 
@@ -1105,7 +1114,7 @@ var Linker = (function(){
 		};
 	}
 
-	function lnkr$deepCopyCode(c) {
+	function lnkr$deepCopyCode(obj) {
 		var temp = {};
 		for (var key in obj) {
 			if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -1153,7 +1162,7 @@ var Linker = (function(){
 		// leave it alone.
 		function flattenFunctionCode(fname, next, input_registers, output_registers, return_target) {
 			var scope = nextScope++; // Get the next scope id for this function.
-			var fn = linkr$find(allfunc, fname); // Find the compiled function data.
+			var fn = lnkr$find(allfunc, fname); // Find the compiled function data.
 
 			var pend = fn.exec.map(lnkr$deepCopyCode); // Commands to be processed, deep copied.
 			var idxs = fn.exec.map((v, j) => lnkr$lazyIndex(scope, j)); // Prepare the lazy indexing object array.
@@ -1257,10 +1266,12 @@ var Linker = (function(){
 					jump.push(idxs[i]);
 
 					// Sanity check.
-					if(exec.length != jump.length)
+					// console.log(exec.length);
+					if(exec.length != jump.length) {
 						lnkr$except("Exec and Jump of different lengths.");
+					}
 
-					return { exec: pend, jump: jump };
+					return { exec: exec, jump: jump };
 
 				} else {
 					// We swap out the next jumps for lazily evaluated indices,
@@ -1268,8 +1279,8 @@ var Linker = (function(){
 					if(pend[i].hasOwnProperty("next")) {
 						pend[i].next = idxs[pend[i].next];
 					} else {
-						pend[i].next_pos = idxs[fn.pend[i].next_pos];
-						pend[i].next_zero = idxs[fn.pend[i].next_zero];
+						pend[i].next_pos = idxs[pend[i].next_pos];
+						pend[i].next_zero = idxs[pend[i].next_zero];
 					}
 					
 					switch (pend[i].type) {
@@ -1294,7 +1305,7 @@ var Linker = (function(){
 							var r_out = pend[i].out.map((v) => (v >= 0?getReg(scope, v):v));
 
 							var sub = flattenFunctionCode(pend[i].fn, idxs[i], r_in, r_out, pend[i].next);
-
+							
 							exec = exec.concat(sub.exec);
 							jump = jump.concat(sub.jump);
 
@@ -1310,7 +1321,7 @@ var Linker = (function(){
 			// returning. This should not have happened.
 			lnkr$except("Function without return.", fn.lineno);
 		}
-		var srcF = linkr$find(allfunc, target);
+		var srcF = lnkr$find(allfunc, target);
 		var rv = flattenFunctionCode(target);
 		var exec = rv.exec;
 		var line = rv.jump;
@@ -1330,6 +1341,8 @@ var Linker = (function(){
 			}
 		});
 
+		// ...and we're done!
+
 		return {
 			"frst": srcF.frst,
 			"name": srcF.name + "_compiled",
@@ -1337,13 +1350,13 @@ var Linker = (function(){
 			"rets": srcF.rets,
 			"deps": [],
 			"regs": regs,
-			"exec": rv,
+			"exec": exec,
 			"opts": {"linked":true}
-		}
-
+		};
 	}
 
 	return {
+		LinkerException: LinkerException,
 		link: lnkr$link
 	};
 
