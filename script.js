@@ -14,9 +14,11 @@ var SAVE_DELAY = 1000;
 var editor;
 var compiled = null; // Is there any compiled code ready to be run? If there is, then this contains the compiled functions. If not, its null
 var runner = null; // Is there any code currently being run? If so, this contains the runner. If not, this is null;
+var codePopup = null;
 // Compiler tests to run
 var testTimer;
 var saveTimer;
+
 
 function $(s){
 	return document.getElementById(s);
@@ -168,7 +170,7 @@ function nextTest(tests) {
 	}
 }
 
-function compileAndLink(funstr) {
+function compileAndDo(funstr, opts, doThing) {
 	var t_start = performance.now();
 	try {
 		// Parse the function call.
@@ -179,22 +181,30 @@ function compileAndLink(funstr) {
 		if (parse.length == 0)
 			throw new MachineException("No functions defined.");
 
-		// Compile without any optimizations, then discard tests.
-		var compiled = parse.map(p => Compiler.compile(p, { prune: false, resolveGotos: false }));
+		// Compile then discard tests.
+		var compiled = parse.map(p => Compiler.compile(p, opts));
 		var compiled = compiled.map(function(v) { return v.code; });
 
-		// Link everything into a single function:
-		var linked = Linker.link(compiled, fcall.fn, {});
+		var f = null;
 
-		// Now we apply optimizations:
-		linked = Compiler.resolveGotos(linked);
-		linked = Compiler.prune(linked).code;
+		if(opts.link) {
+			// Link everything into a single function:
+			f = Linker.link(compiled, fcall.fn, {});
+
+			// Now we apply optimizations:
+			f = Compiler.resolveGotos(f);
+			f = Compiler.prune(f).code;
+		} else {
+			f = compiled.find(fcall.matches);
+			if(!f)
+				throw new MachineException("Cannot find function " + fcall.fn + ".");
+		}
 
 		// End timer.
 		var t_end = performance.now();
-		success("Compiled and linked in " + Math.round(t_end-t_start) + " ms.");
+		success("Compiled in " + Math.round(t_end-t_start) + " ms.");
 
-		return linked;
+		doThing(f);
 	} catch (err) {
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException || err instanceof Linker.LinkerException || (err.name && err.name == "SyntaxError")) {
 			error(err.message, err.location);
@@ -231,26 +241,20 @@ function onCompile(cm) {
 
 // Toolbar buttons:
 function compileToCode() {
-	var linked = compileAndLink($('funcCall').value);
-	if(!linked)
-		return;
-	editor.setValue(PPCode.prettyFunction(linked) + "\n\n\n" + editor.getValue());
+	compileAndDo($('funcCall').value, { prune: false, resolveGotos: false, link: true }, function (linked){
+		editor.setValue(PPCode.prettyFunction(linked) + "\n\n\n" + editor.getValue());
+	});
 }
 function drawGraph() {
-	if(!compiled)
-		return;
-	
-	var fcall = parseFunctionCall($('funcCall').value);
-	if(!fcall)
-		return;
-
-	var f = compiled.find(fcall.matches);
-	if(!f) 
-		return error("Cannot find function " + fcall.fn + ".");
-	
-	var win = window.open("", "", "", false);
-	win.document.write("<pre>" + PPGraph.prettyFunction(f) + "</pre>");
-	win.document.title = "Graph of " + fcall.fn;
+	compileAndDo($('funcCall').value, { prune: true, resolveGotos: true, link: false }, function (f){
+		if(codePopup) {
+			codePopup.close();
+		}
+		codePopup = window.open("", "", "", false);
+		
+		codePopup.document.write("<pre>" + PPGraph.prettyFunction(f) + "</pre>");
+		codePopup.document.title = "Graph of " + f.name;
+	});
 }
 function loadAndPause() {
 	if(!loadFunction($('funcCall').value))
