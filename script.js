@@ -166,6 +166,45 @@ function nextTest(tests) {
 	}
 }
 
+function compileAndLink(funstr) {
+	var t_start = performance.now();
+	try {
+		// Parse the function call.
+		var fcall = parseFunctionCall(funstr);
+	
+		// Parse the code
+		var parse = parser.parse(editor.getValue());
+		if (parse.length == 0)
+			throw new MachineException("No functions defined.");
+
+		// Compile without any optimizations, then discard tests.
+		var compiled = parse.map(p => Compiler.compile(p, { prune: false, resolveGotos: false }));
+		var compiled = compiled.map(function(v) { return v.code; });
+
+		// Link everything into a single function:
+		var linked = Linker.link(compiled, fcall.fn, {});
+
+		// Now we apply optimizations:
+		linked = Compiler.resolveGotos(linked);
+		linked = Compiler.prune(linked).code;
+
+		// End timer.
+		var t_end = performance.now();
+		success("Compiled and linked in " + Math.round(t_end-t_start) + " ms.");
+
+		console.log(linked);
+	} catch (err) {
+		onCompile(null);
+		if (err instanceof Compiler.CompilerException || err instanceof MachineException || err instanceof Linker.LinkerException || (err.name && err.name == "SyntaxError")) {
+			error(err.message, err.location);
+			clearState();
+			return;
+		} else {
+			throw err;
+		}
+	}
+}
+
 //
 // Responding to state changes of the runner/compiler.
 //
@@ -191,6 +230,9 @@ function onCompile(cm) {
 //
 
 // Toolbar buttons:
+function compile() {
+	compileAndLink($('funcCall').value);
+}
 function loadAndPause() {
 	if(!loadFunction($('funcCall').value))
 		return;
@@ -325,6 +367,21 @@ function loadState() {
 // Compiler/Runner interaction
 //
 
+function parseFunctionCall(funstr) {
+	// Parse funstr
+	var regex = /\s*([A-Za-z_][A-Za-z_0-9]*)\(([0-9]+(\s?,\s?([0-9]+))*)\)\s*/;
+	var match = funstr.match(regex);
+	if(!match) {
+		error("Parser error: your function call is not well-formed.");
+		return false;
+	}
+	var fn = match[1];
+	var args = match[2].split(",").map(function(v) { return parseInt(v); });
+
+	// Now we have the function name and the arguments, we construct a FunctionCall object:
+	return FunctionCall(fn, args, 0);
+}
+
 function loadFunction(funstr) {
 	if(!compiled) {
 		error("Compile your code before running a function!");
@@ -332,19 +389,9 @@ function loadFunction(funstr) {
 	}
 	
 	try {
-		// Parse funstr
-		var regex = /\s*([A-Za-z_][A-Za-z_0-9]*)\(([0-9]+(\s?,\s?([0-9]+))*)\)\s*/;
-		var match = funstr.match(regex);
-		if(!match) {
-			error("Parser error: your function call is not well-formed.");
-			return false;
-		}
-		var fn = match[1];
-		var args = match[2].split(",").map(function(v) { return parseInt(v); });
-
-		// Now we have the function name and the arguments, we construct a FunctionCall object:
-		var fcall = FunctionCall(fn, args, 0);
+		var fcall = parseFunctionCall(funstr);
 		setRunner(MachineRunner(compiled, fcall));
+
 	} catch (err) {
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException) {
 			error(err.message, err.location);
