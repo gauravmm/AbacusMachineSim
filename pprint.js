@@ -16,7 +16,7 @@ var PPCode = (function () {
 
 	function ppc$register(fn, opts, i) {
 		if(i < 0)
-			return INTEGER_DECODE(i) + "";
+			return DECODE_INTEGER(i) + "";
 		if(opts.keepRegisteredNames)
 			return "[" + fn.regs[i] + "]";
 		return "[" + (i) + "]";
@@ -93,6 +93,7 @@ var PPCode = (function () {
 		var lines = [];
 
 		// Function head:
+		lines.push("// This code is automatically generated.");
 		lines.push("function " + fn.name + "(" + fn.args.map((r) => ppc$register(fn, opts, r)).join(", ") + ") -> " + fn.rets.map((r) => ppc$register(fn, opts, r)).join(", ") + " {");
 
 		// Now we need to figure out where the jumps are so we can label them.
@@ -133,5 +134,88 @@ var PPCode = (function () {
 	return {
 		PPCodeException: PPCodeException,
 		prettyFunction: ppc$pp
+	};
+})();
+
+var PPGraph = (function () {
+
+	function PPGraphException(text, location) {
+		this.message = text;
+		this.location = location;
+	};
+
+	function ppg$registers(fn, l) {
+		return l.map(function(i) {
+			if(i < 0)
+				return DECODE_INTEGER(i) + "";
+			return "[" + fn.regs[i] + "]";
+		}).join(", ");
+	}
+
+	function ppg$accum(fn, opts) {
+		var nodes = fn.exec.map((v) => null);
+		var edges = [];
+
+		fn.exec.forEach(function (e, i) {
+			if(e.type != MACHINE_CONSTANTS.CODE_TYPE_RETURN) {
+				if(e.hasOwnProperty("next")) {
+					edges.push("q" + i + " -> q" + e.next + ";");
+				} else {
+					edges.push("q" + i + " -> q" + e.next_pos + ";");
+					edges.push("q" + i + " -> q" + e.next_zero + " [label=\"e\"];");
+				}
+			}
+
+			switch(e.type) {
+				case MACHINE_CONSTANTS.CODE_TYPE_CALL:
+					nodes[i] = "q" + i + " [label=\"" + e.fn + "(" + ppg$registers(fn, e.in) + ") : " + ppg$registers(fn, e.out) + "\", shape=rectangle];";
+					break;
+
+				case MACHINE_CONSTANTS.CODE_TYPE_REGISTER:
+					nodes[i] = "q" + i + " [label=\"" + ppg$registers(fn, [e.register]) + (e.increment?"+":"-") + "\"];"; 
+					break;
+
+				case MACHINE_CONSTANTS.CODE_TYPE_GOTO:
+					nodes[i] = "q" + i + " [label=\"goto\"];"; 
+					break;
+
+				case MACHINE_CONSTANTS.CODE_TYPE_RETURN:
+				    nodes[i] = "node [label=\"end\",shape=doublecircle] q" + i + ";";
+				    break;
+
+				case MACHINE_CONSTANTS.CODE_TYPE_VALUES:
+					throw new PPCodeException("Value lists unsupported in PPCode");
+				default: 
+					throw new PPCodeException("Unknown line type in PPCode");
+			}
+		});
+
+		return { nodes: nodes, edges: edges };
+	}
+
+	function ppg$pp(fn, opts) {
+		if(!opts)
+			opts = {};
+
+		var lines = [];
+
+		// Function head:
+		lines.push("digraph " + fn.name + " {rankdir=LR;");
+		lines.push("node [shape = Mcircle] start;");
+		lines.push("node [shape = circle];");
+
+		var dat = ppg$accum(fn, opts);
+		lines = lines.concat(dat.nodes);
+		lines.push("");
+		lines = lines.concat(dat.edges);
+		lines.push("start -> q" + fn.frst + ";");
+
+		lines.push("}");
+		return lines.join("\n");
+	}
+
+	return {
+		PPGraphException: PPGraphException,
+		prettyFunction: ppg$pp
 	};
 })();

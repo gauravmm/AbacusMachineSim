@@ -99,7 +99,7 @@ function nextTest(tests) {
 	// Testing was cancelled. Fail silently.
 	if (!compiled)
 		return;
-	
+
 	function runTestSide(fcall, t){
 		var rr = MachineRunner(compiled, fcall, {});
 		var outLhs = rr.run();
@@ -142,7 +142,6 @@ function nextTest(tests) {
 				rhs = t.rhs.values;
 			}
 
-			
 			// Compare LHS and RHS:
 			var correct = (lhs.length == rhs.length) && lhs.every(function(e, i) { return e === rhs[i]; });
 			tests.status(correct);
@@ -195,14 +194,10 @@ function compileAndLink(funstr) {
 		var t_end = performance.now();
 		success("Compiled and linked in " + Math.round(t_end-t_start) + " ms.");
 
-		console.log(linked);
-		console.log(PPCode.prettyFunction(linked));
-		editor.setValue(PPCode.prettyFunction(linked) + "\n\n\n" + editor.getValue());
+		return linked;
 	} catch (err) {
-		onCompile(null);
 		if (err instanceof Compiler.CompilerException || err instanceof MachineException || err instanceof Linker.LinkerException || (err.name && err.name == "SyntaxError")) {
 			error(err.message, err.location);
-			clearState();
 			return;
 		} else {
 			throw err;
@@ -235,8 +230,27 @@ function onCompile(cm) {
 //
 
 // Toolbar buttons:
-function compile() {
-	compileAndLink($('funcCall').value);
+function compileToCode() {
+	var linked = compileAndLink($('funcCall').value);
+	if(!linked)
+		return;
+	editor.setValue(PPCode.prettyFunction(linked) + "\n\n\n" + editor.getValue());
+}
+function drawGraph() {
+	if(!compiled)
+		return;
+	
+	var fcall = parseFunctionCall($('funcCall').value);
+	if(!fcall)
+		return;
+
+	var f = compiled.find(fcall.matches);
+	if(!f) 
+		return error("Cannot find function " + fcall.fn + ".");
+	
+	var win = window.open("", "", "", false);
+	win.document.write("<pre>" + PPGraph.prettyFunction(f) + "</pre>");
+	win.document.title = "Graph of " + fcall.fn;
 }
 function loadAndPause() {
 	if(!loadFunction($('funcCall').value))
