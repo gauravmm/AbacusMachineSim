@@ -197,7 +197,7 @@ function compileAndDo(funstr, opts, doThing) {
 		} else {
 			f = compiled.find(fcall.matches);
 			if(!f)
-				throw new MachineException("Cannot find function " + fcall.fn + ".");
+				throw new MachineException("Cannot find function \"" + fcall.fn + "\".");
 		}
 
 		// End timer.
