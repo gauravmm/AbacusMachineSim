@@ -43,6 +43,8 @@
       <div id="runningView" style="display: none;">
         <div id="toolbar">
           <div class="toolbarRow toolbarSmallGap">
+            <span class="btn" onclick="compileToCode()" tooltip="Compile to Code">&#xa4;</span>
+            <span class="btn" onclick="drawGraph()" tooltip="Graph">&#x260D;</span>
             <input type="text" id="funcCall" class="code" value="name(1, 2, 3)" />
             <span class="btn" onclick="loadAndPause()" tooltip="Load and Pause (Enter)">&#10073;&#10073;</span>
             <span class="btn" onclick="loadAndRun()" tooltip="Load and Run (Shift+Enter)">&#9654;</span>
@@ -231,6 +233,7 @@ function cpy([1]) -> [1] {
 <script type="text/javascript" src="cmsyntax.js"></script>
 <script type="text/javascript" src="parser.js"></script>
 <script type="text/javascript" src="machine.js"></script>
+<script type="text/javascript" src="pprint.js"></script>
 <script type="text/javascript" src="script.js"></script>
 
 <script>
